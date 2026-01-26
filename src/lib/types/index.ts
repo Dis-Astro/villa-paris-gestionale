@@ -4,92 +4,135 @@
  * Tipi TypeScript per il sistema di gestione eventi.
  * 
  * REGOLE:
- * - Vietate stringhe libere per varianti (usare sempre variantId)
+ * - Vietate stringhe libere per varianti (usare sempre VariantId)
  * - Snapshot versione = evento completo serializzato
- * - ID stabili per tutte le entità
+ * - ID stabili e operativi (usabili direttamente in cucina/stampa)
  */
 
 // ============================================
-// VARIANTI - Dizionario Centrale
+// VARIANTI - Dizionario Centrale con Tipizzazione Forte
 // ============================================
 
 /**
+ * ID varianti operativi - tipizzazione forte.
+ * Questi ID sono usabili direttamente in cucina e stampe.
+ */
+export const VARIANT_IDS = [
+  'vegetariano',
+  'vegano', 
+  'senza_glutine',
+  'senza_lattosio',
+  'senza_uova',
+  'senza_frutta_secca',
+  'senza_crostacei',
+  'senza_pesce',
+  'menu_bambino',
+  'kosher',
+  'halal'
+] as const
+
+/**
+ * Tipo derivato dal dizionario - garantisce type-safety.
+ */
+export type VariantId = typeof VARIANT_IDS[number]
+
+/**
  * Variante alimentare/dietetica.
- * Definita centralmente, referenziata per ID ovunque.
+ * Definita centralmente, referenziata per VariantId ovunque.
  */
 export interface Variante {
-  id: string                    // ID stabile (es: "vegetariano", "celiaco", "lattosio")
-  nome: string                  // Nome visualizzato
-  colore?: string               // Colore per UI (hex)
-  icona?: string                // Icona opzionale
-  descrizione?: string          // Descrizione estesa
+  id: VariantId                 // ID operativo (es: "senza_glutine", "vegetariano")
+  nome: string                  // Nome visualizzato per UI
+  nomeStampa: string            // Nome breve per stampe/cucina
+  colore: string                // Colore per UI (hex)
   attiva: boolean               // Se disponibile per selezione
 }
 
 /**
- * Dizionario varianti: Record<variantId, Variante>
+ * Dizionario varianti: Record<VariantId, Variante>
  * Usato come fonte unica di verità per tutte le varianti.
  */
-export type DizionarioVarianti = Record<string, Variante>
+export type DizionarioVarianti = Record<VariantId, Variante>
 
 /**
- * Varianti predefinite del sistema.
+ * Varianti predefinite del sistema - ID operativi per cucina/stampa.
  */
 export const VARIANTI_DEFAULT: DizionarioVarianti = {
   vegetariano: {
     id: 'vegetariano',
     nome: 'Vegetariano',
+    nomeStampa: 'VEGET',
     colore: '#22c55e',
-    icona: '🥬',
     attiva: true
   },
   vegano: {
     id: 'vegano',
     nome: 'Vegano',
+    nomeStampa: 'VEGAN',
     colore: '#16a34a',
-    icona: '🌱',
     attiva: true
   },
-  celiaco: {
-    id: 'celiaco',
-    nome: 'Celiaco/Gluten-free',
+  senza_glutine: {
+    id: 'senza_glutine',
+    nome: 'Senza Glutine',
+    nomeStampa: 'NO GLUT',
     colore: '#f59e0b',
-    icona: '🌾',
     attiva: true
   },
-  lattosio: {
-    id: 'lattosio',
-    nome: 'Intolleranza Lattosio',
+  senza_lattosio: {
+    id: 'senza_lattosio',
+    nome: 'Senza Lattosio',
+    nomeStampa: 'NO LATT',
     colore: '#3b82f6',
-    icona: '🥛',
     attiva: true
   },
-  allergie: {
-    id: 'allergie',
-    nome: 'Altre Allergie',
+  senza_uova: {
+    id: 'senza_uova',
+    nome: 'Senza Uova',
+    nomeStampa: 'NO UOVA',
+    colore: '#8b5cf6',
+    attiva: true
+  },
+  senza_frutta_secca: {
+    id: 'senza_frutta_secca',
+    nome: 'Senza Frutta Secca',
+    nomeStampa: 'NO FRUT.SEC',
+    colore: '#ec4899',
+    attiva: true
+  },
+  senza_crostacei: {
+    id: 'senza_crostacei',
+    nome: 'Senza Crostacei',
+    nomeStampa: 'NO CROST',
     colore: '#ef4444',
-    icona: '⚠️',
     attiva: true
   },
-  bambino: {
-    id: 'bambino',
+  senza_pesce: {
+    id: 'senza_pesce',
+    nome: 'Senza Pesce',
+    nomeStampa: 'NO PESCE',
+    colore: '#06b6d4',
+    attiva: true
+  },
+  menu_bambino: {
+    id: 'menu_bambino',
     nome: 'Menu Bambino',
+    nomeStampa: 'BAMBINO',
     colore: '#a855f7',
-    icona: '👶',
     attiva: true
   },
   kosher: {
     id: 'kosher',
     nome: 'Kosher',
+    nomeStampa: 'KOSHER',
     colore: '#6366f1',
-    icona: '✡️',
     attiva: true
   },
   halal: {
     id: 'halal',
     nome: 'Halal',
+    nomeStampa: 'HALAL',
     colore: '#14b8a6',
-    icona: '☪️',
     attiva: true
   }
 }
