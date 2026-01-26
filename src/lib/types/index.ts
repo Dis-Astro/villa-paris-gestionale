@@ -138,17 +138,18 @@ export const VARIANTI_DEFAULT: DizionarioVarianti = {
 }
 
 // ============================================
-// PORTATE E MENU
+// PORTATE E MENU (strutture opzionali)
 // ============================================
 
 /**
  * Singolo piatto all'interno di una portata.
+ * Struttura opzionale per menu dettagliati.
  */
 export interface Piatto {
   id: string                    // ID univoco
   nome: string                  // Nome del piatto
   descrizione?: string          // Descrizione opzionale
-  variantiDisponibili: string[] // Array di variantId disponibili per questo piatto
+  variantiDisponibili?: VariantId[] // Array di VariantId disponibili per questo piatto
 }
 
 /**
@@ -158,7 +159,8 @@ export interface Portata {
   id: string                    // ID univoco
   nome: string                  // Nome portata (es: "Antipasto", "Primo")
   ordine: number                // Ordine di servizio (1, 2, 3...)
-  piatti: Piatto[]              // Piatti inclusi nella portata
+  piatti?: Piatto[]             // Piatti inclusi (opzionale)
+  descrizione?: string          // Testo libero per menu semplici
 }
 
 /**
@@ -166,7 +168,7 @@ export interface Portata {
  */
 export interface MenuEvento {
   portate: Portata[]            // Lista ordinata delle portate
-  variantiAttive: string[]      // variantId attivi per questo evento
+  variantiAttive: VariantId[]   // VariantId attivi per questo evento
   note?: string                 // Note generali sul menu
 }
 
