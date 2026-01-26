@@ -113,9 +113,16 @@ export default function ModificaEventoPage() {
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-bold">✏️ Modifica Evento</h1>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <Button onClick={() => router.push('/calendario')} variant="secondary">
           🔙 Torna al Calendario
+        </Button>
+        <Button
+          onClick={() => router.push(`/eventi/${id}/menu`)}
+          variant="outline"
+          data-testid="gestione-menu-btn"
+        >
+          🍽️ Gestione Menu
         </Button>
         <Button
           onClick={() => router.push(`/piantina-evento/${id}`)}
