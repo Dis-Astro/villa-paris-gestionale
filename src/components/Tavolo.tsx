@@ -2,6 +2,7 @@
 
 import { useDrag } from 'react-dnd'
 import { useRef, useEffect, useState } from 'react'
+import { type VariantiTavolo, VARIANTI_DEFAULT } from '@/lib/types'
 
 type TavoloProps = {
   tavolo: {
@@ -11,7 +12,9 @@ type TavoloProps = {
     posizione: { xPerc: number, yPerc: number }
     rotazione?: number
     forma?: string
-    dimensionePerc: number // 0.10 = 10% del container width (per tondo), default 0.1
+    dimensionePerc: number
+    varianti?: VariantiTavolo
+    note?: string
     [key: string]: any
   }
   selected: boolean
@@ -20,6 +23,7 @@ type TavoloProps = {
   onRotate: (rot: number) => void
   onDelete: () => void
   onRename: (nome: string) => void
+  onOpenVarianti?: () => void  // Nuovo callback per aprire pannello varianti
   editabile: boolean
   containerRef: React.RefObject<HTMLDivElement>
 }
@@ -32,6 +36,7 @@ export default function Tavolo({
   onRotate,
   onDelete,
   onRename,
+  onOpenVarianti,
   editabile,
   containerRef
 }: TavoloProps) {
