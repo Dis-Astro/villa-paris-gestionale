@@ -107,6 +107,15 @@ export default function VillaPiantina({
     onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage })
   }
 
+  // Handler per salvare varianti tavolo
+  const handleSaveVariantiTavolo = (tavoloId: number, varianti: VariantiTavolo) => {
+    if (!onChange) return
+    const nuoviTavoli = safeDisposizione.tavoli.map(t =>
+      t.id === tavoloId ? { ...t, varianti } : t
+    )
+    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage })
+  }
+
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (file) {
