@@ -343,7 +343,7 @@ export type TipoDocumento =
   | 'operativo_servizio'   // Fogli servizio per staff
 
 /**
- * Versione dell'evento - snapshot immutabile.
+ * Versione dell'evento - snapshot immutabile completo.
  */
 export interface VersioneEvento {
   id: string                      // UUID versione
@@ -354,8 +354,26 @@ export interface VersioneEvento {
   tipo: TipoVersione
   tipoDocumento: TipoDocumento
   
-  // Snapshot completo dell'evento al momento della creazione
-  snapshot: Omit<Evento, 'id' | 'createdAt' | 'updatedAt'>
+  // Snapshot COMPLETO dell'evento al momento della creazione
+  snapshot: {
+    titolo: string
+    tipo: TipoEvento
+    stato: StatoEvento
+    dataConfermata?: string
+    dateProposte?: string[]
+    fascia: FasciaEvento
+    personePreviste?: number
+    note?: string
+    clienti: ClienteEvento[]
+    menu?: MenuEvento
+    disposizioneSala?: DisposizioneSala
+    bloccato?: boolean
+    bloccatoOverride?: {
+      data: string
+      utente: string
+      commento: string
+    }
+  }
   
   // Audit
   createdAt: string               // ISO timestamp
