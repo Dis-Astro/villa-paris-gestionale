@@ -10,7 +10,7 @@ import sys
 from datetime import datetime
 
 class MenuEventoAPITester:
-    def __init__(self, base_url="http://localhost:3000"):
+    def __init__(self, base_url="http://localhost:3001"):
         self.base_url = base_url
         self.tests_run = 0
         self.tests_passed = 0
