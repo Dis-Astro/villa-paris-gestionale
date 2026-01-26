@@ -193,8 +193,13 @@ export interface DimensionePercentuale {
 }
 
 /**
+ * Varianti per tavolo - tipizzazione forte con VariantId.
+ */
+export type VariantiTavolo = Partial<Record<VariantId, number>>
+
+/**
  * Tavolo con supporto varianti per ospite.
- * Estende il tipo esistente aggiungendo varianti.
+ * Compatibile con API esistente (disposizioneSala).
  */
 export interface TavoloEvento {
   id: number
@@ -202,12 +207,11 @@ export interface TavoloEvento {
   posti: number                           // Numero posti
   posizione: PosizionePercentuale
   rotazione?: number
-  forma?: 'rotondo' | 'rettangolare' | 'quadrato'
+  forma?: 'rotondo' | 'rettangolare' | 'quadrato' | string
   dimensionePerc: number
   
-  // NUOVO: varianti per questo tavolo
-  // Record<variantId, quantità>
-  varianti: Record<string, number>
+  // Varianti per questo tavolo: Record<VariantId, quantità>
+  varianti?: VariantiTavolo
   
   // Note specifiche per il tavolo
   note?: string
@@ -215,6 +219,7 @@ export interface TavoloEvento {
 
 /**
  * Stazione di servizio (buffet, bar, etc.)
+ * Struttura opzionale.
  */
 export interface StazioneEvento {
   id: number
@@ -227,11 +232,12 @@ export interface StazioneEvento {
 
 /**
  * Disposizione completa della sala.
+ * Nome coerente con API esistente: disposizioneSala
  */
 export interface DisposizioneSala {
   tavoli: TavoloEvento[]
-  stazioni: StazioneEvento[]
-  immagine?: string               // Base64 o URL della planimetria
+  stazioni?: StazioneEvento[]             // Opzionale
+  immagine?: string                       // Base64 o URL della planimetria
 }
 
 // ============================================
