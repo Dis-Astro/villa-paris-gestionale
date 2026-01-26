@@ -2,6 +2,8 @@
 // Tipi legacy per compatibilità con componenti esistenti.
 // Per nuovi sviluppi, usare /lib/types/index.ts
 
+import type { VariantId } from '../lib/types'
+
 export type Tavolo = {
   id: number
   numero: string
@@ -11,9 +13,9 @@ export type Tavolo = {
   forma?: string // 'rotondo', 'rettangolare', ecc
   dimensionePerc: number // Percentuale rispetto a larghezza container
   
-  // NUOVO: varianti alimentari per questo tavolo
-  // Record<variantId, quantità> - es: { "vegetariano": 2, "celiaco": 1 }
-  varianti?: Record<string, number>
+  // Varianti alimentari per questo tavolo
+  // Record<VariantId, quantità> - es: { "vegetariano": 2, "senza_glutine": 1 }
+  varianti?: Partial<Record<VariantId, number>>
   
   // Note specifiche per il tavolo
   note?: string
