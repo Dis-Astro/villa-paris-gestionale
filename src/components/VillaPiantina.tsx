@@ -283,6 +283,7 @@ export default function VillaPiantina({
               onRotate={rot => handleRotateTavolo(tavolo.id, rot)}
               onDelete={() => handleDeleteTavolo(tavolo.id)}
               onRename={nome => handleRenameTavolo(tavolo.id, nome)}
+              onOpenVarianti={() => setTavoloVariantiAperto(tavolo)}
               editabile={editabile}
               containerRef={stampaRef || containerRef}
             />
@@ -305,6 +306,18 @@ export default function VillaPiantina({
           ))}
         </div>
       </div>
+
+      {/* Pannello Varianti Tavolo */}
+      {tavoloVariantiAperto && (
+        <PannelloVariantiTavolo
+          tavoloNumero={tavoloVariantiAperto.numero}
+          tavoloPosti={tavoloVariantiAperto.posti}
+          varianti={tavoloVariantiAperto.varianti || {}}
+          variantiAttive={variantiAttive}
+          onSave={(varianti) => handleSaveVariantiTavolo(tavoloVariantiAperto.id, varianti)}
+          onClose={() => setTavoloVariantiAperto(null)}
+        />
+      )}
     </div>
   )
 }
