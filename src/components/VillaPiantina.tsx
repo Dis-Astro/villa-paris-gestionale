@@ -3,7 +3,9 @@
 import { useState, useRef, useEffect } from 'react'
 import Tavolo from './Tavolo'
 import Stazione from './Stazione'
+import PannelloVariantiTavolo from './PannelloVariantiTavolo'
 import { Tavolo as TavoloType, Stazione as StazioneType } from '../types/piantina'
+import { type VariantId, type VariantiTavolo } from '@/lib/types'
 import { Upload, Printer } from 'lucide-react'
 
 export default function VillaPiantina({
@@ -14,7 +16,8 @@ export default function VillaPiantina({
   onNuovaPlanimetria,
   onCambiaPlanimetria,
   onStampa,
-  stampaRef
+  stampaRef,
+  variantiAttive = []
 }: {
   disposizione: { tavoli: TavoloType[], stazioni: StazioneType[], immagine?: string }
   onChange?: (nuovaDisposizione: { tavoli: TavoloType[], stazioni: StazioneType[], immagine?: string }) => void
@@ -24,10 +27,12 @@ export default function VillaPiantina({
   onCambiaPlanimetria?: (url: string) => void
   onStampa?: () => void
   stampaRef?: React.RefObject<HTMLDivElement>
+  variantiAttive?: VariantId[]
 }) {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
   const [backgroundImage, setBackgroundImage] = useState<string | null>(disposizione?.immagine || null)
   const [planimetriaSelezionata, setPlanimetriaSelezionata] = useState<string | null>(null)
+  const [tavoloVariantiAperto, setTavoloVariantiAperto] = useState<TavoloType | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
