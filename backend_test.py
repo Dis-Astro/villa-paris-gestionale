@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Test for Villa Paris Gestionale - Menu Evento
-Testing the Next.js API routes for event menu functionality
+Backend API Test for Villa Paris Gestionale - Tavolo Varianti
+Testing the Next.js API routes for tavolo variants functionality
 """
 
 import requests
@@ -9,7 +9,7 @@ import json
 import sys
 from datetime import datetime
 
-class MenuEventoAPITester:
+class TavoloVariantiAPITester:
     def __init__(self, base_url="http://localhost:3000"):
         self.base_url = base_url
         self.tests_run = 0
