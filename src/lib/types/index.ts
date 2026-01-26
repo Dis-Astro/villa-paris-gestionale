@@ -434,7 +434,7 @@ export interface HeaderPDF {
 }
 
 // ============================================
-// UTILITY TYPES
+// UTILITY TYPES E FUNCTIONS
 // ============================================
 
 /**
@@ -442,18 +442,15 @@ export interface HeaderPDF {
  */
 export interface RiepilogoVarianti {
   totaleOspiti: number
-  perVariante: Record<string, number>   // variantId -> count
+  perVariante: Partial<Record<VariantId, number>>
   tavoliConVarianti: number
 }
 
 /**
  * Helper per validare che un ID variante esista.
  */
-export function isValidVariantId(
-  id: string, 
-  dizionario: DizionarioVarianti = VARIANTI_DEFAULT
-): boolean {
-  return id in dizionario && dizionario[id].attiva
+export function isValidVariantId(id: string): id is VariantId {
+  return VARIANT_IDS.includes(id as VariantId)
 }
 
 /**
@@ -477,7 +474,7 @@ export function calcolaRiepilogoVarianti(
       result.tavoliConVarianti++
       
       for (const [variantId, count] of Object.entries(tavolo.varianti)) {
-        if (count > 0) {
+        if (isValidVariantId(variantId) && count && count > 0) {
           result.perVariante[variantId] = (result.perVariante[variantId] || 0) + count
         }
       }
