@@ -1,0 +1,59 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Modello per gli eventi
+model Evento {
+  id               Int              @id @default(autoincrement())
+  titolo           String
+  tipo             String
+  dataConfermata   DateTime?
+  fascia           String
+  stato            String
+  personePreviste  Int?
+  note             String?
+  menu             Json?
+  struttura        Json?
+  dateProposte     Json?
+  disposizioneSala Json?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  clienti          EventoCliente[]  // 👈 RELAZIONE CON I CLIENTI
+}
+
+// Modello per i menù base
+model MenuBase {
+  id        Int      @id @default(autoincrement())
+  nome      String
+  struttura Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Modello per i clienti
+model Cliente {
+  id        Int              @id @default(autoincrement())
+  nome      String
+  cognome   String
+  email     String?
+  telefono  String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  eventi    EventoCliente[]  // 👈 RELAZIONE CON GLI EVENTI
+}
+
+// Relazione N:N tra Evento e Cliente
+model EventoCliente {
+  id         Int     @id @default(autoincrement())
+  evento     Evento  @relation(fields: [eventoId], references: [id])
+  eventoId   Int
+  cliente    Cliente @relation(fields: [clienteId], references: [id])
+  clienteId  Int
+}

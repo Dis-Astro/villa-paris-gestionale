@@ -1,0 +1,112 @@
+{
+  "Antipasti": [
+    {
+      "nome": "Bruschette",
+      "preferito": false
+    },
+    {
+      "nome": "Crostini toscani",
+      "preferito": false
+    },
+    {
+      "nome": "Caprese",
+      "preferito": false
+    },
+    {
+      "nome": "Test 1",
+      "preferito": false
+    },
+    {
+      "nome": "Test 7",
+      "preferito": false
+    }
+  ],
+  "Primi": [
+    {
+      "nome": "Lasagna",
+      "preferito": false
+    },
+    {
+      "nome": "Risotto ai funghi",
+      "preferito": false
+    },
+    {
+      "nome": "Pasta al pesto",
+      "preferito": false
+    },
+    {
+      "nome": "Test 2",
+      "preferito": false
+    },
+    {
+      "nome": "Test 8",
+      "preferito": false
+    }
+  ],
+  "Finger Food": [
+    {
+      "nome": "Mini hamburger",
+      "preferito": false
+    },
+    {
+      "nome": "Tartine miste",
+      "preferito": false
+    },
+    {
+      "nome": "Olive ascolane",
+      "preferito": false
+    },
+    {
+      "nome": "Test 3",
+      "preferito": false
+    },
+    {
+      "nome": "Test 9",
+      "preferito": false
+    }
+  ],
+  "Vini Speciali": [
+    {
+      "nome": "Barolo",
+      "preferito": false
+    },
+    {
+      "nome": "Chianti Riserva",
+      "preferito": false
+    },
+    {
+      "nome": "Prosecco DOCG",
+      "preferito": false
+    },
+    {
+      "nome": "Test 4",
+      "preferito": false
+    },
+    {
+      "nome": "Test 10",
+      "preferito": false
+    }
+  ],
+  "Servizi Extra": [
+    {
+      "nome": "Fotografo",
+      "preferito": false
+    },
+    {
+      "nome": "DJ Set",
+      "preferito": false
+    },
+    {
+      "nome": "Fuochi d’artificio",
+      "preferito": false
+    },
+    {
+      "nome": "Test 5",
+      "preferito": false
+    },
+    {
+      "nome": "Test 11",
+      "preferito": false
+    }
+  ]
+}
