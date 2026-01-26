@@ -42,50 +42,67 @@ class TavoloVariantiAPITester:
             self.log_test("API Connection", False, str(e))
             return False
 
-    def test_get_event_by_id(self, event_id=1):
-        """Test getting specific event by ID"""
+    def test_get_event_with_disposizione(self, event_id=1):
+        """Test getting event with disposizioneSala and tavolo variants"""
         try:
             response = requests.get(f"{self.base_url}/api/eventi?id={event_id}", timeout=10)
             success = response.status_code == 200
             
             if success:
                 data = response.json()
-                has_menu = 'menu' in data
-                self.log_test(f"Get Event {event_id}", success, f"Has menu: {has_menu}")
+                has_disposizione = 'disposizioneSala' in data
+                has_tavoli = has_disposizione and 'tavoli' in data['disposizioneSala']
+                has_variants = False
+                
+                if has_tavoli and len(data['disposizioneSala']['tavoli']) > 0:
+                    tavolo = data['disposizioneSala']['tavoli'][0]
+                    has_variants = 'varianti' in tavolo and len(tavolo.get('varianti', {})) > 0
+                
+                self.log_test(f"Get Event {event_id} with Disposizione", success, 
+                             f"Has disposizione: {has_disposizione}, Has tavoli: {has_tavoli}, Has variants: {has_variants}")
                 return data
             else:
-                self.log_test(f"Get Event {event_id}", False, f"Status: {response.status_code}")
+                self.log_test(f"Get Event {event_id} with Disposizione", False, f"Status: {response.status_code}")
                 return None
         except Exception as e:
-            self.log_test(f"Get Event {event_id}", False, str(e))
+            self.log_test(f"Get Event {event_id} with Disposizione", False, str(e))
             return None
 
-    def test_update_event_menu(self, event_id=1):
-        """Test updating event menu"""
+    def test_update_tavolo_variants(self, event_id=1):
+        """Test updating tavolo variants in disposizioneSala"""
         try:
             # First get the current event
             get_response = requests.get(f"{self.base_url}/api/eventi?id={event_id}", timeout=10)
             if get_response.status_code != 200:
-                self.log_test("Update Menu - Get Event", False, f"Status: {get_response.status_code}")
+                self.log_test("Update Tavolo Variants - Get Event", False, f"Status: {get_response.status_code}")
                 return False
 
             event_data = get_response.json()
             
-            # Update with test menu data
-            test_menu = {
-                "portate": [
-                    {
-                        "id": "portata_test_1",
-                        "nome": "Antipasto Test",
-                        "ordine": 1,
-                        "descrizione": "Test antipasto description"
-                    }
-                ],
-                "variantiAttive": ["vegetariano", "senza_glutine"],
-                "note": "Test menu note"
-            }
+            # Update tavolo variants
+            if 'disposizioneSala' not in event_data:
+                event_data['disposizioneSala'] = {'tavoli': [], 'stazioni': []}
             
-            event_data['menu'] = test_menu
+            if not event_data['disposizioneSala'].get('tavoli'):
+                # Create a test tavolo if none exists
+                event_data['disposizioneSala']['tavoli'] = [{
+                    "id": 1,
+                    "numero": "T1",
+                    "posti": 8,
+                    "posizione": {"xPerc": 0.12, "yPerc": 0.12},
+                    "rotazione": 0,
+                    "forma": "rotondo",
+                    "dimensionePerc": 0.06,
+                    "varianti": {}
+                }]
+            
+            # Update variants for first tavolo
+            tavolo = event_data['disposizioneSala']['tavoli'][0]
+            tavolo['varianti'] = {
+                "vegetariano": 3,
+                "senza_glutine": 2,
+                "vegano": 1
+            }
             
             # Send PUT request
             response = requests.put(
@@ -96,11 +113,11 @@ class TavoloVariantiAPITester:
             )
             
             success = response.status_code == 200
-            self.log_test("Update Event Menu", success, f"Status: {response.status_code}")
+            self.log_test("Update Tavolo Variants", success, f"Status: {response.status_code}")
             return success
             
         except Exception as e:
-            self.log_test("Update Event Menu", False, str(e))
+            self.log_test("Update Tavolo Variants", False, str(e))
             return False
 
     def create_test_event_if_needed(self):
