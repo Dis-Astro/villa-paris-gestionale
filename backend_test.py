@@ -167,7 +167,7 @@ class TavoloVariantiAPITester:
 
     def run_all_tests(self):
         """Run all backend API tests"""
-        print("🧪 Starting Villa Paris Menu API Tests...")
+        print("🧪 Starting Villa Paris Tavolo Varianti API Tests...")
         print("=" * 50)
         
         # Test API connection
@@ -178,12 +178,14 @@ class TavoloVariantiAPITester:
         # Create test event if needed
         self.create_test_event_if_needed()
         
-        # Test getting event
-        event_data = self.test_get_event_by_id(1)
+        # Test getting event with disposizione
+        event_data = self.test_get_event_with_disposizione(1)
         
-        # Test updating menu
+        # Test updating tavolo variants
         if event_data:
-            self.test_update_event_menu(1)
+            self.test_update_tavolo_variants(1)
+            # Verify the update worked
+            self.test_get_event_with_disposizione(1)
         
         # Print summary
         print("\n" + "=" * 50)
@@ -198,7 +200,7 @@ class TavoloVariantiAPITester:
 
 def main():
     """Main test execution"""
-    tester = MenuEventoAPITester()
+    tester = TavoloVariantiAPITester()
     success = tester.run_all_tests()
     return 0 if success else 1
 
