@@ -257,6 +257,13 @@ export default function ModificaEventoPage() {
       </div>
 
       {status && <p className="text-sm text-gray-700 mt-2">{status}</p>}
+      {/* Menu Stampa Modal */}
+      <MenuStampa
+        evento={evento}
+        onCreaVersione={handleCreaVersione}
+        isOpen={showStampa}
+        onClose={() => setShowStampa(false)}
+      />
     </div>
   )
 }
