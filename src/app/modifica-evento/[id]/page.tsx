@@ -99,6 +99,31 @@ export default function ModificaEventoPage() {
     setStatus(res.ok ? '✅ Modificato con successo' : '❌ Errore nel salvataggio')
   }
 
+  // Crea versione per stampa contrattuale
+  const handleCreaVersione = async (tipo: TipoVersione, tipoDoc: string): Promise<number> => {
+    try {
+      const res = await fetch('/api/versioni', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          eventoId: id,
+          tipo,
+          tipoDocumento: tipoDoc,
+          commento: `Stampa ${tipo} - ${tipoDoc}`
+        })
+      })
+      
+      if (res.ok) {
+        const data = await res.json()
+        return data.numero
+      }
+      return 1
+    } catch (error) {
+      console.error('Errore creazione versione:', error)
+      return 1
+    }
+  }
+
   const generaPDF = async () => {
     if (!stampaRef.current) return
     const canvas = await html2canvas(stampaRef.current)
@@ -132,6 +157,15 @@ export default function ModificaEventoPage() {
           variant="outline"
         >
           🪑 Gestione Piantina Sala
+        </Button>
+        <Button
+          onClick={() => setShowStampa(true)}
+          variant="default"
+          className="bg-blue-700 hover:bg-blue-800"
+          data-testid="stampa-documenti-btn"
+        >
+          <Printer className="w-4 h-4 mr-2" />
+          🖨️ Stampa Documenti
         </Button>
       </div>
 
