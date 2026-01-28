@@ -7,13 +7,16 @@ import jsPDF from 'jspdf'
 import html2canvas from 'html2canvas'
 import MenuBaseSelector from '@/components/MenuBaseSelector'
 import { Button } from '@/components/ui/button'
-import { X } from 'lucide-react'
+import { X, Printer } from 'lucide-react'
+import MenuStampa from '@/components/stampe/MenuStampa'
+import type { TipoVersione } from '@/lib/types'
 
 export default function ModificaEventoPage() {
   const { id } = useParams()
   const router = useRouter()
   const [evento, setEvento] = useState<any>(null)
   const [status, setStatus] = useState('')
+  const [showStampa, setShowStampa] = useState(false)
   const stampaRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
