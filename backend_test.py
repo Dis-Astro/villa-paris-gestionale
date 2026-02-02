@@ -1,15 +1,15 @@
 #!/usr/bin/env python3
 """
-Backend API Test for Villa Paris Gestionale - Tavolo Varianti
-Testing the Next.js API routes for tavolo variants functionality
+Backend API Test for Villa Paris Gestionale - Versioning + Blocking Features
+Testing STEP 5 (Versioning) and STEP 6 (Blocco -10 giorni) functionality
 """
 
 import requests
 import json
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
-class TavoloVariantiAPITester:
+class VillaParisVersioningBlockingTester:
     def __init__(self, base_url="http://localhost:3000"):
         self.base_url = base_url
         self.tests_run = 0
