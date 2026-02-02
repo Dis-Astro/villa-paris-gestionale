@@ -43,82 +43,190 @@ class VillaParisVersioningBlockingTester:
             self.log_test("API Connection", False, str(e))
             return False
 
-    def test_get_event_with_disposizione(self, event_id=1):
-        """Test getting event with disposizioneSala and tavolo variants"""
+    def test_versioni_api_get(self, event_id=1):
+        """Test GET /api/versioni?eventoId=X returns versions list"""
+        try:
+            response = requests.get(f"{self.base_url}/api/versioni?eventoId={event_id}", timeout=10)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                is_list = isinstance(data, list)
+                self.log_test(f"GET Versioni for Event {event_id}", success, 
+                             f"Returned {len(data) if is_list else 0} versions")
+                return data
+            else:
+                self.log_test(f"GET Versioni for Event {event_id}", False, f"Status: {response.status_code}")
+                return []
+        except Exception as e:
+            self.log_test(f"GET Versioni for Event {event_id}", False, str(e))
+            return []
+
+    def test_versioni_api_post(self, event_id=1):
+        """Test POST /api/versioni creates version with snapshot"""
+        try:
+            version_data = {
+                "eventoId": event_id,
+                "tipo": "CONTRATTO",
+                "watermark": "CONTRATTO",
+                "commento": "Test version creation",
+                "autore": "Test User"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/versioni",
+                json=version_data,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                has_version = 'versione' in data
+                has_numero = 'numero' in data
+                self.log_test("POST Create Version", success, 
+                             f"Created version {data.get('numero', 'N/A')}")
+                return data
+            else:
+                self.log_test("POST Create Version", False, f"Status: {response.status_code}")
+                return None
+        except Exception as e:
+            self.log_test("POST Create Version", False, str(e))
+            return None
+
+    def test_eventi_api_get_with_blocco(self, event_id=1):
+        """Test GET /api/eventi?id=X includes _blocco info"""
         try:
             response = requests.get(f"{self.base_url}/api/eventi?id={event_id}", timeout=10)
             success = response.status_code == 200
             
             if success:
                 data = response.json()
-                has_disposizione = 'disposizioneSala' in data
-                has_tavoli = has_disposizione and 'tavoli' in data['disposizioneSala']
-                has_variants = False
+                has_blocco = '_blocco' in data
+                blocco_info = data.get('_blocco', {})
+                is_blocked = blocco_info.get('isBloccato', False)
+                giorni = blocco_info.get('giorniMancanti', 'N/A')
                 
-                if has_tavoli and len(data['disposizioneSala']['tavoli']) > 0:
-                    tavolo = data['disposizioneSala']['tavoli'][0]
-                    has_variants = 'varianti' in tavolo and len(tavolo.get('varianti', {})) > 0
-                
-                self.log_test(f"Get Event {event_id} with Disposizione", success, 
-                             f"Has disposizione: {has_disposizione}, Has tavoli: {has_tavoli}, Has variants: {has_variants}")
+                self.log_test(f"GET Event {event_id} with Blocco Info", success, 
+                             f"Has _blocco: {has_blocco}, Blocked: {is_blocked}, Days: {giorni}")
                 return data
             else:
-                self.log_test(f"Get Event {event_id} with Disposizione", False, f"Status: {response.status_code}")
+                self.log_test(f"GET Event {event_id} with Blocco Info", False, f"Status: {response.status_code}")
                 return None
         except Exception as e:
-            self.log_test(f"Get Event {event_id} with Disposizione", False, str(e))
+            self.log_test(f"GET Event {event_id} with Blocco Info", False, str(e))
             return None
 
-    def test_update_tavolo_variants(self, event_id=1):
-        """Test updating tavolo variants in disposizioneSala"""
+    def test_eventi_api_put_blocked_without_override(self, event_id=3):
+        """Test PUT /api/eventi returns 423 for blocked event without override"""
         try:
-            # First get the current event
-            get_response = requests.get(f"{self.base_url}/api/eventi?id={event_id}", timeout=10)
-            if get_response.status_code != 200:
-                self.log_test("Update Tavolo Variants - Get Event", False, f"Status: {get_response.status_code}")
-                return False
-
-            event_data = get_response.json()
-            
-            # Update tavolo variants
-            if 'disposizioneSala' not in event_data:
-                event_data['disposizioneSala'] = {'tavoli': [], 'stazioni': []}
-            
-            if not event_data['disposizioneSala'].get('tavoli'):
-                # Create a test tavolo if none exists
-                event_data['disposizioneSala']['tavoli'] = [{
-                    "id": 1,
-                    "numero": "T1",
-                    "posti": 8,
-                    "posizione": {"xPerc": 0.12, "yPerc": 0.12},
-                    "rotazione": 0,
-                    "forma": "rotondo",
-                    "dimensionePerc": 0.06,
-                    "varianti": {}
-                }]
-            
-            # Update variants for first tavolo
-            tavolo = event_data['disposizioneSala']['tavoli'][0]
-            tavolo['varianti'] = {
-                "vegetariano": 3,
-                "senza_glutine": 2,
-                "vegano": 1
+            # Try to update blocked fields without override headers
+            update_data = {
+                "menu": {"test": "blocked update"},
+                "note": "This should be blocked"
             }
             
-            # Send PUT request
             response = requests.put(
                 f"{self.base_url}/api/eventi?id={event_id}",
-                json=event_data,
+                json=update_data,
+                headers={'Content-Type': 'application/json'},
+                timeout=10
+            )
+            
+            success = response.status_code == 423
+            if success:
+                data = response.json()
+                has_error = 'error' in data
+                has_override_required = data.get('overrideRequired', False)
+                self.log_test("PUT Blocked Event (No Override)", success, 
+                             f"Correctly returned 423 Locked, Override required: {has_override_required}")
+                return data
+            else:
+                self.log_test("PUT Blocked Event (No Override)", False, 
+                             f"Expected 423, got {response.status_code}")
+                return None
+        except Exception as e:
+            self.log_test("PUT Blocked Event (No Override)", False, str(e))
+            return None
+
+    def test_eventi_api_put_blocked_with_override(self, event_id=3):
+        """Test PUT /api/eventi succeeds with valid override headers"""
+        try:
+            # Update blocked fields WITH override headers
+            update_data = {
+                "menu": {"test": "override update"},
+                "note": "This should work with override"
+            }
+            
+            headers = {
+                'Content-Type': 'application/json',
+                'X-Override-Token': self.override_token,
+                'X-Override-Motivo': 'Test override for automated testing - urgent client request',
+                'X-Override-Autore': 'Test Automation'
+            }
+            
+            response = requests.put(
+                f"{self.base_url}/api/eventi?id={event_id}",
+                json=update_data,
+                headers=headers,
+                timeout=10
+            )
+            
+            success = response.status_code == 200
+            if success:
+                data = response.json()
+                self.log_test("PUT Blocked Event (With Override)", success, 
+                             f"Successfully updated with override")
+                return data
+            else:
+                self.log_test("PUT Blocked Event (With Override)", False, 
+                             f"Expected 200, got {response.status_code}")
+                return None
+        except Exception as e:
+            self.log_test("PUT Blocked Event (With Override)", False, str(e))
+            return None
+
+    def test_stampa_cliente_creates_version(self, event_id=1):
+        """Test that Stampa Cliente creates AUTO_PRE_STAMPA version"""
+        try:
+            # Get initial version count
+            initial_versions = self.test_versioni_api_get(event_id)
+            initial_count = len(initial_versions) if initial_versions else 0
+            
+            # Create AUTO_PRE_STAMPA version (simulating Stampa Cliente action)
+            version_data = {
+                "eventoId": event_id,
+                "tipo": "AUTO_PRE_STAMPA",
+                "watermark": "BOZZA",
+                "commento": "Stampa Cliente automatica",
+                "autore": "Sistema"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/versioni",
+                json=version_data,
                 headers={'Content-Type': 'application/json'},
                 timeout=10
             )
             
             success = response.status_code == 200
-            self.log_test("Update Tavolo Variants", success, f"Status: {response.status_code}")
-            return success
-            
+            if success:
+                # Verify version was created
+                new_versions = self.test_versioni_api_get(event_id)
+                new_count = len(new_versions) if new_versions else 0
+                version_created = new_count > initial_count
+                
+                self.log_test("Stampa Cliente Creates AUTO_PRE_STAMPA Version", 
+                             version_created, 
+                             f"Versions: {initial_count} -> {new_count}")
+                return version_created
+            else:
+                self.log_test("Stampa Cliente Creates AUTO_PRE_STAMPA Version", False, 
+                             f"Status: {response.status_code}")
+                return False
         except Exception as e:
-            self.log_test("Update Tavolo Variants", False, str(e))
+            self.log_test("Stampa Cliente Creates AUTO_PRE_STAMPA Version", False, str(e))
             return False
 
     def create_test_event_if_needed(self):
