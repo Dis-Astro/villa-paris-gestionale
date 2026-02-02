@@ -317,29 +317,39 @@ class VillaParisVersioningBlockingTester:
             return False
 
     def run_all_tests(self):
-        """Run all backend API tests"""
-        print("🧪 Starting Villa Paris Tavolo Varianti API Tests...")
-        print("=" * 50)
+        """Run all backend API tests for Versioning and Blocking features"""
+        print("🧪 Starting Villa Paris Versioning + Blocking API Tests...")
+        print("=" * 60)
         
         # Test API connection
         if not self.test_api_connection():
             print("❌ Cannot connect to API, stopping tests")
             return False
         
-        # Create test event if needed
-        self.create_test_event_if_needed()
+        # Create test events if needed
+        self.create_test_events_if_needed()
         
-        # Test getting event with disposizione
-        event_data = self.test_get_event_with_disposizione(1)
+        print("\n📋 Testing Versioning Features (STEP 5)...")
+        print("-" * 40)
         
-        # Test updating tavolo variants
-        if event_data:
-            self.test_update_tavolo_variants(1)
-            # Verify the update worked
-            self.test_get_event_with_disposizione(1)
+        # Test versioning APIs
+        versions = self.test_versioni_api_get(1)
+        self.test_versioni_api_post(1)
+        self.test_stampa_cliente_creates_version(1)
+        
+        print("\n🔒 Testing Blocking Features (STEP 6)...")
+        print("-" * 40)
+        
+        # Test blocking info
+        event1_data = self.test_eventi_api_get_with_blocco(1)  # Not blocked
+        event3_data = self.test_eventi_api_get_with_blocco(3)  # Blocked
+        
+        # Test blocking enforcement
+        self.test_eventi_api_put_blocked_without_override(3)
+        self.test_eventi_api_put_blocked_with_override(3)
         
         # Print summary
-        print("\n" + "=" * 50)
+        print("\n" + "=" * 60)
         print(f"📊 Test Summary: {self.tests_passed}/{self.tests_run} passed")
         
         if self.tests_passed == self.tests_run:
