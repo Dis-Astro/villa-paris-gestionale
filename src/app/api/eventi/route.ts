@@ -109,7 +109,7 @@ export async function GET(req: Request) {
   }
 }
 
-// AGGIORNA UN EVENTO
+// AGGIORNA UN EVENTO (con blocco -10 giorni)
 export async function PUT(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
@@ -118,13 +118,56 @@ export async function PUT(req: Request) {
 
     const body = await req.json()
 
+    // Recupera evento esistente per verificare blocco
+    const eventoEsistente = await prisma.evento.findUnique({
+      where: { id }
+    })
+
+    if (!eventoEsistente) {
+      return new NextResponse('Evento non trovato', { status: 404 })
+    }
+
+    // Verifica blocco -10 giorni
+    const infoBlocco = calcolaInfoBlocco(eventoEsistente.dataConfermata)
+    const campiBloccatiModificati = getCampiBloccatiModificati(body)
+
+    if (infoBlocco.isBloccato && campiBloccatiModificati.length > 0) {
+      // Verifica override headers
+      const overrideResult = validateOverrideHeaders(req.headers)
+
+      if (!overrideResult.valid) {
+        return new NextResponse(
+          JSON.stringify({
+            error: 'Evento bloccato',
+            message: infoBlocco.messaggioBlocco,
+            giorniMancanti: infoBlocco.giorniMancanti,
+            campiBloccati: campiBloccatiModificati,
+            overrideRequired: true,
+            overrideHeaders: {
+              token: OVERRIDE_HEADERS.TOKEN,
+              motivo: OVERRIDE_HEADERS.MOTIVO,
+              autore: OVERRIDE_HEADERS.AUTORE
+            },
+            overrideError: overrideResult.error
+          }),
+          { 
+            status: 423,
+            headers: { 'Content-Type': 'application/json' }
+          }
+        )
+      }
+
+      // Override valido: registra nel log
+      await registraOverride(id, {
+        ...overrideResult.override!,
+        campoModificato: campiBloccatiModificati.join(', ')
+      })
+
+      console.log(`[OVERRIDE] Evento ${id} modificato con override: ${overrideResult.override!.motivo}`)
+    }
+
     // Log solo il necessario, non la base64
     console.log('API DEBUG PUT - tavoli:', body.disposizioneSala?.tavoli?.length, 'stazioni:', body.disposizioneSala?.stazioni?.length)
-    if (body.disposizioneSala?.immagine) {
-      console.log('API DEBUG PUT - immagine: caricata (lunghezza:', body.disposizioneSala.immagine.length, ')')
-    } else {
-      console.log('API DEBUG PUT - nessuna immagine caricata')
-    }
 
     const evento = await prisma.evento.update({
       where: { id },
@@ -142,9 +185,6 @@ export async function PUT(req: Request) {
         dateProposte: body.dateProposte ?? []
       }
     })
-
-    // Log conferma update
-    console.log('API DEBUG PUT after update - tavoli:', evento.disposizioneSala?.tavoli?.length, 'stazioni:', evento.disposizioneSala?.stazioni?.length)
 
     return NextResponse.json(evento)
   } catch (error) {
