@@ -9,12 +9,22 @@ import MenuBaseSelector from '@/components/MenuBaseSelector'
 import { Button } from '@/components/ui/button'
 import { X, Printer } from 'lucide-react'
 import MenuStampa from '@/components/stampe/MenuStampa'
+import BannerBlocco, { getOverrideHeaders, clearOverrideHeaders } from '@/components/BannerBlocco'
 import type { TipoVersione } from '@/lib/types'
+
+interface InfoBlocco {
+  isBloccato: boolean
+  giorniMancanti: number
+  dataEvento: string | null
+  messaggioBlocco: string
+}
 
 export default function ModificaEventoPage() {
   const { id } = useParams()
   const router = useRouter()
   const [evento, setEvento] = useState<any>(null)
+  const [infoBlocco, setInfoBlocco] = useState<InfoBlocco | null>(null)
+  const [versioneCorrente, setVersioneCorrente] = useState(1)
   const [status, setStatus] = useState('')
   const [showStampa, setShowStampa] = useState(false)
   const stampaRef = useRef<HTMLDivElement>(null)
