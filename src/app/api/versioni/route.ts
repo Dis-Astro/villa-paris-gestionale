@@ -2,34 +2,55 @@ import { PrismaClient } from '@prisma/client'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
 
+// Force Node.js runtime per Prisma
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
+
 const prisma = new PrismaClient()
 
-// Estendi lo schema Prisma per le versioni se necessario
-// Per ora usiamo un campo JSON nell'evento per memorizzare le versioni
-
 /**
- * GET - Recupera versioni di un evento
+ * GET - Lista versioni per evento
+ * Query params: eventoId (required), id (optional per singola versione)
  */
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url)
-    const eventoId = Number(searchParams.get('eventoId'))
+    const eventoId = searchParams.get('eventoId')
+    const versioneId = searchParams.get('id')
     
     if (!eventoId) {
       return new NextResponse('eventoId mancante', { status: 400 })
     }
 
-    const evento = await prisma.evento.findUnique({
-      where: { id: eventoId }
-    })
-
-    if (!evento) {
-      return new NextResponse('Evento non trovato', { status: 404 })
+    // Se richiesta singola versione
+    if (versioneId) {
+      const versione = await prisma.versioneEvento.findUnique({
+        where: { id: versioneId }
+      })
+      
+      if (!versione || versione.eventoId !== Number(eventoId)) {
+        return new NextResponse('Versione non trovata', { status: 404 })
+      }
+      
+      return NextResponse.json(versione)
     }
 
-    // Le versioni sono memorizzate nel campo struttura.versioni
-    const struttura = evento.struttura as any || {}
-    const versioni = struttura.versioni || []
+    // Lista tutte le versioni per evento
+    const versioni = await prisma.versioneEvento.findMany({
+      where: { eventoId: Number(eventoId) },
+      orderBy: { numero: 'desc' },
+      select: {
+        id: true,
+        numero: true,
+        tipo: true,
+        watermark: true,
+        autore: true,
+        commento: true,
+        createdAt: true,
+        hash: true
+        // snapshot escluso dalla lista per performance
+      }
+    })
 
     return NextResponse.json(versioni)
   } catch (error) {
@@ -40,17 +61,18 @@ export async function GET(req: Request) {
 
 /**
  * POST - Crea nuova versione (snapshot) dell'evento
+ * Body: { eventoId, tipo, watermark, commento?, autore? }
  */
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const { eventoId, tipo, tipoDocumento, commento } = body
+    const { eventoId, tipo, watermark, commento, autore } = body
 
-    if (!eventoId || !tipo || !tipoDocumento) {
-      return new NextResponse('Parametri mancanti', { status: 400 })
+    if (!eventoId || !tipo || !watermark) {
+      return new NextResponse('Parametri mancanti (eventoId, tipo, watermark)', { status: 400 })
     }
 
-    // Recupera evento completo
+    // Recupera evento completo con relazioni
     const evento = await prisma.evento.findUnique({
       where: { id: Number(eventoId) },
       include: {
@@ -64,7 +86,7 @@ export async function POST(req: Request) {
       return new NextResponse('Evento non trovato', { status: 404 })
     }
 
-    // Prepara snapshot
+    // Prepara snapshot completo
     const clientiSnapshot = evento.clienti.map(ec => ({
       id: ec.cliente.id,
       nome: ec.cliente.nome,
@@ -77,13 +99,14 @@ export async function POST(req: Request) {
       titolo: evento.titolo,
       tipo: evento.tipo,
       stato: evento.stato,
-      dataConfermata: evento.dataConfermata?.toISOString(),
+      dataConfermata: evento.dataConfermata?.toISOString() || null,
       dateProposte: evento.dateProposte,
       fascia: evento.fascia,
       personePreviste: evento.personePreviste,
       note: evento.note,
       clienti: clientiSnapshot,
       menu: evento.menu,
+      struttura: evento.struttura,
       disposizioneSala: evento.disposizioneSala
     }
 
@@ -94,34 +117,23 @@ export async function POST(req: Request) {
       .digest('hex')
       .substring(0, 16)
 
-    // Recupera versioni esistenti
-    const struttura = evento.struttura as any || {}
-    const versioni = struttura.versioni || []
-    
-    // Numero nuova versione
-    const nuovoNumero = versioni.length + 1
+    // Conta versioni esistenti per numero progressivo
+    const countVersioni = await prisma.versioneEvento.count({
+      where: { eventoId: Number(eventoId) }
+    })
+    const nuovoNumero = countVersioni + 1
 
     // Crea nuova versione
-    const nuovaVersione = {
-      id: crypto.randomUUID(),
-      eventoId: evento.id,
-      numero: nuovoNumero,
-      tipo,
-      tipoDocumento,
-      snapshot,
-      createdAt: new Date().toISOString(),
-      commento: commento || `Versione ${tipo} generata automaticamente`,
-      hash
-    }
-
-    // Aggiorna evento con nuova versione
-    await prisma.evento.update({
-      where: { id: evento.id },
+    const nuovaVersione = await prisma.versioneEvento.create({
       data: {
-        struttura: {
-          ...struttura,
-          versioni: [...versioni, nuovaVersione]
-        }
+        eventoId: Number(eventoId),
+        numero: nuovoNumero,
+        tipo,
+        watermark,
+        snapshot,
+        hash,
+        autore: autore || null,
+        commento: commento || `Versione ${tipo} - ${watermark}`
       }
     })
 
