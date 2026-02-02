@@ -24,7 +24,45 @@ model Evento {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  clienti          EventoCliente[]  // 👈 RELAZIONE CON I CLIENTI
+  clienti          EventoCliente[]
+  versioni         VersioneEvento[]
+  overrideLogs     OverrideLog[]
+}
+
+// Versione evento - snapshot anti-contestazione
+model VersioneEvento {
+  id            String   @id @default(uuid())
+  eventoId      Int
+  evento        Evento   @relation(fields: [eventoId], references: [id])
+  
+  numero        Int      // Revisione progressiva per evento (1, 2, 3...)
+  tipo          String   // bozza | contratto | definitivo | AUTO_PRE_STAMPA
+  watermark     String   // BOZZA | CONTRATTO | DEFINITIVO
+  
+  snapshot      Json     // Snapshot completo evento
+  hash          String?  // Hash per verifica integrità
+  
+  autore        String?  // Utente che ha creato (se disponibile)
+  commento      String?
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([eventoId])
+}
+
+// Log override blocco -10 giorni
+model OverrideLog {
+  id            String   @id @default(uuid())
+  eventoId      Int
+  evento        Evento   @relation(fields: [eventoId], references: [id])
+  
+  motivo        String   // Motivo obbligatorio
+  autore        String?  // Chi ha fatto override
+  campoModificato String? // Quale campo è stato modificato
+  
+  createdAt     DateTime @default(now())
+  
+  @@index([eventoId])
 }
 
 // Modello per i menù base
@@ -46,7 +84,7 @@ model Cliente {
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
 
-  eventi    EventoCliente[]  // 👈 RELAZIONE CON GLI EVENTI
+  eventi    EventoCliente[]
 }
 
 // Relazione N:N tra Evento e Cliente
