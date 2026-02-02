@@ -361,7 +361,7 @@ class VillaParisVersioningBlockingTester:
 
 def main():
     """Main test execution"""
-    tester = TavoloVariantiAPITester()
+    tester = VillaParisVersioningBlockingTester()
     success = tester.run_all_tests()
     return 0 if success else 1
 
