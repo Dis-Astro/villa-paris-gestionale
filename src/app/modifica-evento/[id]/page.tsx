@@ -132,28 +132,33 @@ export default function ModificaEventoPage() {
     setStatus(res.ok ? '✅ Modificato con successo' : '❌ Errore nel salvataggio')
   }
 
-  // Crea versione per stampa contrattuale
-  const handleCreaVersione = async (tipo: TipoVersione, tipoDoc: string): Promise<number> => {
+  // Crea versione per stampa (AUTO_PRE_STAMPA o contratto/definitivo)
+  const handleCreaVersione = async (tipo: string, tipoDoc: string): Promise<number> => {
     try {
+      // Mappa tipo a watermark
+      const watermark = tipo === 'AUTO_PRE_STAMPA' ? 'BOZZA' 
+        : tipo === 'contratto' ? 'CONTRATTO' : 'DEFINITIVO'
+      
       const res = await fetch('/api/versioni', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           eventoId: id,
           tipo,
-          tipoDocumento: tipoDoc,
+          watermark,
           commento: `Stampa ${tipo} - ${tipoDoc}`
         })
       })
       
       if (res.ok) {
         const data = await res.json()
+        setVersioneCorrente(data.numero)
         return data.numero
       }
-      return 1
+      return versioneCorrente
     } catch (error) {
       console.error('Errore creazione versione:', error)
-      return 1
+      return versioneCorrente
     }
   }
 
