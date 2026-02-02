@@ -30,12 +30,11 @@ export default function MenuStampa({
     try {
       let versione = versioneCorrente
       
-      // Se stampa CONTRATTO o DEFINITIVO, crea versione
-      if (watermark !== 'BOZZA' && onCreaVersione) {
-        versione = await onCreaVersione(
-          watermark === 'CONTRATTO' ? 'contratto' : 'definitivo',
-          'pacchetto_cliente'
-        )
+      // Crea SEMPRE versione AUTO_PRE_STAMPA per stampa cliente
+      if (onCreaVersione) {
+        const tipo = watermark === 'BOZZA' ? 'AUTO_PRE_STAMPA' 
+          : watermark === 'CONTRATTO' ? 'contratto' : 'definitivo'
+        versione = await onCreaVersione(tipo, 'pacchetto_cliente')
         setVersioneCorrente(versione)
       }
       
