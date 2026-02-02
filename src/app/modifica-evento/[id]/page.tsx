@@ -97,9 +97,15 @@ export default function ModificaEventoPage() {
     e.preventDefault()
     setStatus('Salvataggio in corso...')
 
+    // Aggiungi headers override se presenti
+    const overrideHeaders = getOverrideHeaders()
+
     const res = await fetch(`/api/eventi?id=${id}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 
+        'Content-Type': 'application/json',
+        ...overrideHeaders
+      },
       body: JSON.stringify({
         tipo: evento.tipo,
         titolo: evento.titolo,
@@ -115,6 +121,14 @@ export default function ModificaEventoPage() {
       })
     })
 
+    if (res.status === 423) {
+      const errorData = await res.json()
+      setStatus(`🔒 ${errorData.message}`)
+      return
+    }
+
+    // Pulisci override headers dopo uso
+    clearOverrideHeaders()
     setStatus(res.ok ? '✅ Modificato con successo' : '❌ Errore nel salvataggio')
   }
 
