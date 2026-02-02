@@ -82,6 +82,11 @@ export async function GET(req: Request) {
         include: {
           clienti: {
             include: { cliente: true }
+          },
+          versioni: {
+            orderBy: { numero: 'desc' },
+            take: 1,
+            select: { numero: true }
           }
         }
       })
@@ -90,7 +95,15 @@ export async function GET(req: Request) {
         return new NextResponse('Evento non trovato', { status: 404 })
       }
 
-      return NextResponse.json(evento)
+      // Aggiungi info blocco
+      const infoBlocco = calcolaInfoBlocco(evento.dataConfermata)
+      const ultimaVersione = evento.versioni[0]?.numero || 0
+
+      return NextResponse.json({
+        ...evento,
+        _blocco: infoBlocco,
+        _versioneCorrente: ultimaVersione
+      })
     }
 
     const eventi = await prisma.evento.findMany({
