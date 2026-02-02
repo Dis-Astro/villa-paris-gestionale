@@ -41,6 +41,15 @@ export default function ModificaEventoPage() {
       data.menu = data.menu || {}
       data.struttura = data.struttura || {}
       data.disposizioneSala = data.disposizioneSala || { tavoli: [], stazioni: [], immagine: '' }
+      
+      // Estrai info blocco e versione
+      if (data._blocco) {
+        setInfoBlocco(data._blocco)
+      }
+      if (data._versioneCorrente) {
+        setVersioneCorrente(data._versioneCorrente)
+      }
+      
       setEvento(data)
     }
     fetchEvento()
