@@ -15,6 +15,7 @@ class VillaParisVersioningBlockingTester:
         self.tests_run = 0
         self.tests_passed = 0
         self.test_results = []
+        self.override_token = "VILLA-PARIS-ADMIN-2026"
 
     def log_test(self, name, success, details=""):
         """Log test result"""
