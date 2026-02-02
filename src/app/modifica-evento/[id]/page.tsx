@@ -174,6 +174,14 @@ export default function ModificaEventoPage() {
     <div className="p-6 space-y-4">
       <h1 className="text-xl font-bold">✏️ Modifica Evento</h1>
 
+      {/* Banner Blocco -10 giorni */}
+      {infoBlocco && (
+        <BannerBlocco 
+          infoBlocco={infoBlocco} 
+          onOverrideSuccess={() => setStatus('🔓 Override attivato. Puoi salvare le modifiche.')}
+        />
+      )}
+
       <div className="flex flex-wrap gap-2">
         <Button onClick={() => router.push('/calendario')} variant="secondary">
           🔙 Torna al Calendario
