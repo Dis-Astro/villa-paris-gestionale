@@ -229,49 +229,91 @@ class VillaParisVersioningBlockingTester:
             self.log_test("Stampa Cliente Creates AUTO_PRE_STAMPA Version", False, str(e))
             return False
 
-    def create_test_event_if_needed(self):
-        """Create a test event if event ID 1 doesn't exist"""
+    def create_test_events_if_needed(self):
+        """Create test events if they don't exist - Event 1 (not blocked), Event 3 (blocked)"""
         try:
-            # Check if event 1 exists
-            response = requests.get(f"{self.base_url}/api/eventi?id=1", timeout=10)
-            if response.status_code == 200:
-                self.log_test("Test Event Exists", True, "Event ID 1 found")
-                return True
+            # Check if events exist
+            event1_exists = False
+            event3_exists = False
             
-            # Create test event
-            test_event = {
-                "tipo": "matrimonio",
-                "titolo": "Test Event for Menu",
-                "fascia": "cena",
-                "stato": "bozza",
-                "personePreviste": 50,
-                "note": "Test event for menu functionality",
-                "clienti": [{
-                    "nome": "Test",
-                    "cognome": "Client",
-                    "email": "test@example.com",
-                    "telefono": "1234567890"
-                }],
-                "menu": {
-                    "portate": [],
-                    "variantiAttive": [],
-                    "note": ""
+            response1 = requests.get(f"{self.base_url}/api/eventi?id=1", timeout=10)
+            if response1.status_code == 200:
+                event1_exists = True
+                self.log_test("Test Event 1 Exists", True, "Event ID 1 found")
+            
+            response3 = requests.get(f"{self.base_url}/api/eventi?id=3", timeout=10)
+            if response3.status_code == 200:
+                event3_exists = True
+                self.log_test("Test Event 3 Exists", True, "Event ID 3 found")
+            
+            # Create Event 1 (not blocked - 41 days away)
+            if not event1_exists:
+                future_date = (datetime.now() + timedelta(days=41)).isoformat()
+                test_event1 = {
+                    "tipo": "matrimonio",
+                    "titolo": "Test Event 1 - Not Blocked",
+                    "dataConfermata": future_date,
+                    "fascia": "cena",
+                    "stato": "confermato",
+                    "personePreviste": 50,
+                    "note": "Test event for versioning - not blocked",
+                    "clienti": [{
+                        "nome": "Test",
+                        "cognome": "Client1",
+                        "email": "test1@example.com",
+                        "telefono": "1234567890"
+                    }],
+                    "menu": {"portate": [], "variantiAttive": [], "note": ""},
+                    "struttura": {"varianti": []},
+                    "disposizioneSala": {"tavoli": [], "stazioni": []}
                 }
-            }
+                
+                response = requests.post(
+                    f"{self.base_url}/api/eventi",
+                    json=test_event1,
+                    headers={'Content-Type': 'application/json'},
+                    timeout=10
+                )
+                
+                success = response.status_code == 200
+                self.log_test("Create Test Event 1 (Not Blocked)", success, f"Status: {response.status_code}")
             
-            response = requests.post(
-                f"{self.base_url}/api/eventi",
-                json=test_event,
-                headers={'Content-Type': 'application/json'},
-                timeout=10
-            )
+            # Create Event 3 (blocked - 5 days away)
+            if not event3_exists:
+                blocked_date = (datetime.now() + timedelta(days=5)).isoformat()
+                test_event3 = {
+                    "tipo": "matrimonio", 
+                    "titolo": "Test Event 3 - Blocked",
+                    "dataConfermata": blocked_date,
+                    "fascia": "cena",
+                    "stato": "confermato",
+                    "personePreviste": 80,
+                    "note": "Test event for blocking - 5 days away",
+                    "clienti": [{
+                        "nome": "Test",
+                        "cognome": "Client3",
+                        "email": "test3@example.com",
+                        "telefono": "0987654321"
+                    }],
+                    "menu": {"portate": [], "variantiAttive": [], "note": ""},
+                    "struttura": {"varianti": []},
+                    "disposizioneSala": {"tavoli": [], "stazioni": []}
+                }
+                
+                response = requests.post(
+                    f"{self.base_url}/api/eventi",
+                    json=test_event3,
+                    headers={'Content-Type': 'application/json'},
+                    timeout=10
+                )
+                
+                success = response.status_code == 200
+                self.log_test("Create Test Event 3 (Blocked)", success, f"Status: {response.status_code}")
             
-            success = response.status_code == 200
-            self.log_test("Create Test Event", success, f"Status: {response.status_code}")
-            return success
+            return True
             
         except Exception as e:
-            self.log_test("Create Test Event", False, str(e))
+            self.log_test("Create Test Events", False, str(e))
             return False
 
     def run_all_tests(self):
