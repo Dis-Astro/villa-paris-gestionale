@@ -195,7 +195,14 @@ export async function PUT(req: Request) {
         menu: body.menu,
         struttura: body.struttura,
         disposizioneSala: body.disposizioneSala || null,
-        dateProposte: body.dateProposte ?? []
+        dateProposte: body.dateProposte ?? [],
+        // Campi report aziendale
+        luogo: body.luogo || null,
+        prezzo: body.prezzo ? parseFloat(body.prezzo) : null,
+        menuPasto: body.menuPasto || null,
+        menuBuffet: body.menuBuffet || null,
+        sposa: body.sposa || null,
+        sposo: body.sposo || null
       }
     })
 
