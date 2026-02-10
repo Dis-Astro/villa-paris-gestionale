@@ -230,6 +230,8 @@ export default function ModificaEventoPage() {
             <option value="Matrimonio">Matrimonio</option>
             <option value="Compleanno">Compleanno</option>
             <option value="Comunione">Comunione</option>
+            <option value="Battesimo">Battesimo</option>
+            <option value="Cresima">Cresima</option>
             <option value="Festa Privata/Aziendale">Festa Privata/Aziendale</option>
           </select>
           <select name="fascia" value={evento.fascia} onChange={handleChange} className="border p-2 w-full">
@@ -241,6 +243,56 @@ export default function ModificaEventoPage() {
             <option value="confermato">🟢 Confermato</option>
             <option value="annullato">🔴 Annullato</option>
           </select>
+          
+          {/* Campi per report aziendale */}
+          <div className="col-span-2 grid grid-cols-2 gap-4 p-4 bg-gray-50 rounded-lg">
+            <h3 className="col-span-2 font-semibold text-gray-700">📊 Dati per Report</h3>
+            <input 
+              name="sposa" 
+              placeholder="Sposa / Festeggiato" 
+              value={evento.sposa || ''} 
+              onChange={handleChange} 
+              className="border p-2 w-full rounded" 
+            />
+            <input 
+              name="sposo" 
+              placeholder="Sposo (se matrimonio)" 
+              value={evento.sposo || ''} 
+              onChange={handleChange} 
+              className="border p-2 w-full rounded" 
+            />
+            <input 
+              name="luogo" 
+              placeholder="Luogo (default: Villa Paris)" 
+              value={evento.luogo || ''} 
+              onChange={handleChange} 
+              className="border p-2 w-full rounded" 
+            />
+            <input 
+              name="prezzo" 
+              type="number" 
+              step="0.01"
+              placeholder="Prezzo per persona (€)" 
+              value={evento.prezzo || ''} 
+              onChange={handleChange} 
+              className="border p-2 w-full rounded" 
+            />
+            <input 
+              name="menuPasto" 
+              placeholder="Descrizione Menu Pasto" 
+              value={evento.menuPasto || ''} 
+              onChange={handleChange} 
+              className="border p-2 w-full rounded" 
+            />
+            <input 
+              name="menuBuffet" 
+              placeholder="Descrizione Menu Buffet" 
+              value={evento.menuBuffet || ''} 
+              onChange={handleChange} 
+              className="border p-2 w-full rounded" 
+            />
+          </div>
+          
           <input name="personePreviste" type="number" placeholder="Numero invitati" value={evento.personePreviste ?? ''} onChange={handleChange} className="border p-2 w-full" />
           <textarea name="note" value={evento.note} onChange={handleChange} rows={4} className="border p-2 w-full" />
 
