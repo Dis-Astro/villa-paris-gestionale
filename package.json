@@ -17,6 +17,7 @@
     "@radix-ui/react-slot": "^1.1.2",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "exceljs": "^4.4.0",
     "html2canvas": "^1.4.1",
     "jspdf": "^3.0.1",
     "lightningcss": "^1.30.1",
@@ -29,6 +30,7 @@
     "react-dnd-html5-backend": "^16.0.1",
     "react-dnd-touch-backend": "^16.0.1",
     "react-dom": "^18.2.0",
+    "recharts": "^3.7.0",
     "tailwind-merge": "^3.0.2",
     "tw-animate-css": "^1.2.4",
     "xlsx": "^0.18.5"
