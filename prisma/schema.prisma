@@ -21,6 +21,15 @@ model Evento {
   struttura        Json?
   dateProposte     Json?
   disposizioneSala Json?
+  
+  // Campi report aziendale
+  luogo            String?          // Luogo evento (default: Villa Paris)
+  prezzo           Float?           // Prezzo per persona
+  menuPasto        String?          // Descrizione menu pasto
+  menuBuffet       String?          // Descrizione menu buffet
+  sposa            String?          // Nome sposa/festeggiato
+  sposo            String?          // Nome sposo (se matrimonio)
+  
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
