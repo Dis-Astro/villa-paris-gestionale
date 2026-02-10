@@ -25,7 +25,7 @@ type TavoloProps = {
   onRename: (nome: string) => void
   onOpenVarianti?: () => void  // Nuovo callback per aprire pannello varianti
   editabile: boolean
-  containerRef: React.RefObject<HTMLDivElement>
+  containerRef: React.RefObject<HTMLDivElement | null>
 }
 
 export default function Tavolo({
