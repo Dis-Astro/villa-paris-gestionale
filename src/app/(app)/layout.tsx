@@ -1,14 +1,9 @@
-import type { Metadata } from 'next'
-
-export const metadata: Metadata = {
-  title: 'Villa Paris Gestionale',
-  description: 'Sistema di gestione eventi Villa Paris',
-}
+import AppShell from '@/components/layout/AppShell'
 
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode
 }) {
-  return <>{children}</>
+  return <AppShell>{children}</AppShell>
 }
