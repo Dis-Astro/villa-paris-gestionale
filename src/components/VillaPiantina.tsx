@@ -66,7 +66,7 @@ export default function VillaPiantina({
     const nuoviTavoli = safeDisposizione.tavoli.map(t =>
       t.id === id ? { ...t, rotazione: nuovaRotazione } : t
     )
-    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage })
+    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage ?? undefined })
   }
 
   const handleRotateStazione = (id: number, nuovaRotazione: number) => {
