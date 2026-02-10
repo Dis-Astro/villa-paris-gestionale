@@ -35,7 +35,7 @@ const statiEvento = [
   { label: "Annullato", value: "annullato" }
 ]
 
-export default function NuovoEventoPage() {
+function NuovoEventoContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const dataIniziale = searchParams.get('data')
@@ -51,7 +51,7 @@ export default function NuovoEventoPage() {
   const [evento, setEvento] = useState({
     tipo: "",
     titolo: "",
-    dateProposte: dataIniziale ? [dataIniziale] : [] as string[],
+    dateProposte: [] as string[],
     dataConfermata: "",
     fascia: "pranzo",
     personePreviste: "",
@@ -60,6 +60,16 @@ export default function NuovoEventoPage() {
   })
   
   const [isSaving, setIsSaving] = useState(false)
+  
+  // Imposta data iniziale se presente
+  useEffect(() => {
+    if (dataIniziale && !evento.dateProposte.includes(dataIniziale)) {
+      setEvento(prev => ({
+        ...prev,
+        dateProposte: [dataIniziale]
+      }))
+    }
+  }, [dataIniziale])
 
   const toggleDataDaCalendario = (arg: any) => {
     const data = arg.dateStr
