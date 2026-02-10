@@ -195,8 +195,6 @@ export default function NuovoEventoPage() {
           </div>
         </CardContent>
       </Card>
-
-      {evento.dataConfermata && <MenuSelezione onBack={() => {}} onSubmit={confermaEvento} />}
     </div>
   );
 }
