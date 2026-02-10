@@ -321,7 +321,7 @@ export default function ReportAziendaPage() {
                     <XAxis dataKey="mese" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} tickFormatter={(v) => `€${v/1000}k`} />
                     <Tooltip 
-                      formatter={(value: number) => [`€${value.toLocaleString()}`, 'Ricavi']}
+                      formatter={(value) => [`€${Number(value).toLocaleString()}`, 'Ricavi']}
                       labelFormatter={(label) => `Mese: ${label}`}
                     />
                     <Bar dataKey="ricavi" fill="#D4AF37" radius={[4, 4, 0, 0]} />
