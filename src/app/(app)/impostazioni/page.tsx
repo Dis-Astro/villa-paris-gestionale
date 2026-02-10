@@ -52,7 +52,9 @@ export default function ImpostazioniPage() {
     await new Promise(resolve => setTimeout(resolve, 1000))
     
     // Salva in localStorage per persistenza locale
-    localStorage.setItem('villa-paris-settings', JSON.stringify(settings))
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('villa-paris-settings', JSON.stringify(settings))
+    }
     
     setStatus('✅ Impostazioni salvate')
     setIsSaving(false)
@@ -60,16 +62,18 @@ export default function ImpostazioniPage() {
   }
 
   // Carica settings da localStorage al mount
-  useState(() => {
-    const saved = localStorage.getItem('villa-paris-settings')
-    if (saved) {
-      try {
-        setSettings(JSON.parse(saved))
-      } catch (e) {
-        console.error('Errore nel caricamento impostazioni:', e)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('villa-paris-settings')
+      if (saved) {
+        try {
+          setSettings(JSON.parse(saved))
+        } catch (e) {
+          console.error('Errore nel caricamento impostazioni:', e)
+        }
       }
     }
-  })
+  }, [])
 
   return (
     <div className="space-y-6" data-testid="impostazioni-page">
