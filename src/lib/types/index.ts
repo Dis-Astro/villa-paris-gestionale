@@ -333,6 +333,7 @@ export type TipoVersione =
   | 'bozza'           // Versione di lavoro
   | 'contratto'       // Inviato al cliente per approvazione
   | 'definitivo'      // Versione finale confermata
+  | 'AUTO_PRE_STAMPA' // Versione automatica pre-stampa
 
 /**
  * Tipo di documento generato.
