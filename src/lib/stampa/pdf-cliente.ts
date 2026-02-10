@@ -4,7 +4,9 @@
  * Include: Copertina, Piantina pulita, Menu, Pagina firme
  */
 
+// @ts-ignore - pdfmake types don't match runtime
 import pdfMake from 'pdfmake/build/pdfmake'
+// @ts-ignore - pdfmake types don't match runtime
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { TDocumentDefinitions, Content } from 'pdfmake/interfaces'
 import type { Evento, MenuEvento, DisposizioneSala } from '@/lib/types'
@@ -23,6 +25,7 @@ import {
 } from './pdf-utils'
 
 // Inizializza i font
+// @ts-ignore - pdfmake runtime initialization
 pdfMake.vfs = pdfFonts.vfs
 
 // ============================================
