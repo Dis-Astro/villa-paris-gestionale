@@ -26,7 +26,7 @@ export default function VillaPiantina({
   onNuovaPlanimetria?: (file: File) => void
   onCambiaPlanimetria?: (url: string) => void
   onStampa?: () => void
-  stampaRef?: React.RefObject<HTMLDivElement>
+  stampaRef?: React.RefObject<HTMLDivElement | null>
   variantiAttive?: VariantId[]
 }) {
   const [selectedItem, setSelectedItem] = useState<string | null>(null)
