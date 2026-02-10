@@ -136,12 +136,16 @@ export default function MenuEventoPage() {
       if (newIdx < 0 || newIdx >= portate.length) return prev
       
       // Scambia
-      [portate[idx], portate[newIdx]] = [portate[newIdx], portate[idx]]
+      const temp = portate[idx]
+      portate[idx] = portate[newIdx]
+      portate[newIdx] = temp
       
-      // Ricalcola ordine
+      // Ricalcola ordine e ritorna MenuEvento completo
+      const nuovePortate = portate.map((p, i) => ({ ...p, ordine: i + 1 }))
       return {
-        ...prev,
-        portate: portate.map((p, i) => ({ ...p, ordine: i + 1 }))
+        portate: nuovePortate,
+        variantiAttive: prev.variantiAttive,
+        note: prev.note
       }
     })
   }
