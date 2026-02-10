@@ -8,7 +8,6 @@
 import pdfMake from 'pdfmake/build/pdfmake'
 // @ts-ignore - pdfmake types don't match runtime
 import pdfFonts from 'pdfmake/build/vfs_fonts'
-import type { TDocumentDefinitions, Content } from 'pdfmake/interfaces'
 import type { Evento, MenuEvento, DisposizioneSala, Portata, VariantId } from '@/lib/types'
 import { VARIANTI_DEFAULT } from '@/lib/types'
 import {
