@@ -442,6 +442,7 @@ export function generaPDFOperativo(
 ): void {
   const metadata = buildMetadata(evento, options)
   
+  // @ts-ignore - pdfmake type definitions are incomplete
   const docDefinition: TDocumentDefinitions = {
     pageSize: 'A4',
     pageMargins: [40, 60, 40, 60],
