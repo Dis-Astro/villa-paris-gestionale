@@ -74,20 +74,20 @@ export default function VillaPiantina({
     const nuoveStazioni = safeDisposizione.stazioni.map(s =>
       s.id === id ? { ...s, rotazione: nuovaRotazione } : s
     )
-    onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage })
+    onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage ?? undefined })
   }
 
   const handleDeleteTavolo = (id: number) => {
     if (!onChange) return
     const nuoviTavoli = safeDisposizione.tavoli.filter(t => t.id !== id)
-    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage })
+    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage ?? undefined })
     setSelectedItem(null)
   }
 
   const handleDeleteStazione = (id: number) => {
     if (!onChange) return
     const nuoveStazioni = safeDisposizione.stazioni.filter(s => s.id !== id)
-    onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage })
+    onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage ?? undefined })
     setSelectedItem(null)
   }
 
@@ -96,7 +96,7 @@ export default function VillaPiantina({
     const nuoviTavoli = safeDisposizione.tavoli.map(t =>
       t.id === id ? { ...t, numero: nuovoNome } : t
     )
-    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage })
+    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage ?? undefined })
   }
 
   const handleRenameStazione = (id: number, nuovoNome: string) => {
@@ -104,7 +104,7 @@ export default function VillaPiantina({
     const nuoveStazioni = safeDisposizione.stazioni.map(s =>
       s.id === id ? { ...s, nome: nuovoNome } : s
     )
-    onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage })
+    onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage ?? undefined })
   }
 
   // Handler per salvare varianti tavolo
@@ -113,7 +113,7 @@ export default function VillaPiantina({
     const nuoviTavoli = safeDisposizione.tavoli.map(t =>
       t.id === tavoloId ? { ...t, varianti } : t
     )
-    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage })
+    onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage ?? undefined })
   }
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
