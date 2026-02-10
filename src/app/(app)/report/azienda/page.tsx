@@ -390,7 +390,7 @@ export default function ReportAziendaPage() {
                     <XAxis dataKey="mese" tick={{ fontSize: 12 }} />
                     <YAxis tick={{ fontSize: 12 }} />
                     <Tooltip 
-                      formatter={(value: number) => [value.toLocaleString(), 'Ospiti']}
+                      formatter={(value) => [Number(value).toLocaleString(), 'Ospiti']}
                     />
                     <Bar dataKey="ospiti" fill="#22C55E" radius={[4, 4, 0, 0]} />
                   </BarChart>
