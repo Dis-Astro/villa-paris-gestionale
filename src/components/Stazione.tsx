@@ -23,7 +23,7 @@ type StazioneProps = {
   onDelete: () => void
   onRename: (nome: string) => void
   editabile: boolean
-  containerRef: React.RefObject<HTMLDivElement> // obbligatorio!
+  containerRef: React.RefObject<HTMLDivElement | null> // obbligatorio!
 }
 
 export default function Stazione({
