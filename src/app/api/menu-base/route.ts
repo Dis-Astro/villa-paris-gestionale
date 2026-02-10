@@ -34,7 +34,7 @@ export async function POST(req: NextRequest) {
     const nuovo = await prisma.menuBase.create({
       data: {
         nome: body.nome,
-        struttura: body.contenuto
+        struttura: body.struttura
       }
     })
     return NextResponse.json(nuovo)
