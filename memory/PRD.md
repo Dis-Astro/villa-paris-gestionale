@@ -9,88 +9,78 @@ Il sistema serve per:
 - Gestione menu, piantina, varianti per tavolo
 - Produzione PDF contrattuali/operativi
 - Tracciamento versioni (anti-contestazione)
+- Report aziendali ed export Excel
 
 ## Tech Stack
-- **Frontend**: Next.js 15 (App Router)
+- **Frontend**: Next.js 15 (App Router) + Recharts
 - **Database**: Prisma + SQLite (dev) / PostgreSQL (prod)
 - **PDF**: pdfmake (client-side)
+- **Excel**: exceljs
 - **UI**: Tailwind CSS + shadcn/ui
+- **Deploy**: LXC Proxmox installer
 
 ## User Personas
 1. **Organizzatore Evento**: Gestisce menu, piantina, varianti
 2. **Staff Cucina**: Utilizza PDF operativi con riepilogo varianti
 3. **Cliente**: Riceve PDF contrattuale per approvazione
-
-## Core Requirements (Static)
-- [x] CRUD Eventi
-- [x] Gestione Menu (portate + varianti)
-- [x] Piantina drag&drop con varianti per tavolo
-- [x] Stampe PDF (Cliente + Operativo)
-- [x] Sistema versioni anti-contestazione
-- [x] Blocco automatico -10 giorni + override admin
+4. **Admin**: Report aziendali, export Excel
 
 ---
 
 ## Implementation Status
 
-### ✅ STEP 1 - Modelli Dati (Completato)
-- File: `/src/lib/types/index.ts`
-- VariantId tipizzato (11 varianti operative)
-- Snapshot versione completo
-- Utility functions (calcolaInfoBlocco, calcolaRiepilogoVarianti)
+### ✅ STEP 1-6 - Core Gestionale (Completato)
+- Modelli dati TypeScript
+- CRUD Menu Evento
+- Varianti per Tavolo
+- Stampe PDF (Cliente + Operativo)
+- Versioning anti-contestazione
+- Blocco -10 giorni + Override
 
-### ✅ STEP 2 - Menu Evento (Completato)
-- Route: `/app/(app)/eventi/[id]/menu/page.tsx`
-- CRUD portate con ordine
-- Selezione varianti attive per evento
-- Salvataggio su API esistente
+### ✅ DevOps - LXC Proxmox Installer (Completato)
+- `scripts/proxmox/install-lxc.sh` - One-liner installer
+- `scripts/lxc/provision.sh` - Provisioning script
+- `scripts/lxc/villaparis.service` - systemd unit
+- `README_LXC.md` - Documentazione completa
 
-### ✅ STEP 3 - Varianti per Tavolo (Completato)
-- Componente: `/src/components/PannelloVariantiTavolo.tsx`
-- Double-click tavolo → pannello varianti
-- Input quantità +/- per variante
-- Badge numero varianti + colore predominante
-- Riepilogo varianti in header piantina
+### ✅ UI/UX - AppShell + Sidebar (Completato)
+- `src/components/layout/AppShell.tsx`
+- `src/components/nav/Sidebar.tsx`
+- `src/components/nav/Topbar.tsx`
+- Dashboard con KPI cards
+- Navigazione responsive mobile-first
 
-### ✅ STEP 4 - Stampe PDF (Completato)
-- Files: `/src/lib/stampa/`
-- PDF Cliente: copertina, menu, piantina pulita, firme
-- PDF Operativo: riepilogo varianti, piantina dettagliata, fogli servizio
-- Watermark: BOZZA / CONTRATTO / DEFINITIVO
-- Header/footer con versione e data stampa
-
-### ✅ STEP 5 - Versioning (Completato)
-- Model: `VersioneEvento` (Prisma)
-- API: `/api/versioni` (GET lista, POST crea)
-- Snapshot JSON completo con hash
-- AUTO_PRE_STAMPA per ogni stampa cliente
-
-### ✅ STEP 6 - Blocco -10 Giorni (Completato)
-- Utility: `/src/lib/blocco-evento.ts`
-- Campi bloccati: menu, note, disposizioneSala, struttura
-- Risposta 423 Locked con dettagli
-- Override via headers (token + motivo)
-- UI: BannerBlocco + Modal Override
-- Log override in DB
+### ✅ Report Azienda + Excel (Completato)
+- `src/app/(app)/report/azienda/page.tsx`
+- `src/app/api/report/azienda.xlsx/route.ts`
+- `src/app/api/report/stats/route.ts`
+- Grafici: Ricavi, Eventi, Ospiti per mese
+- Export PNG grafici
+- Campi evento estesi: sposa, sposo, luogo, prezzo, menuPasto, menuBuffet
 
 ---
 
-## Backlog (P2)
-- [ ] Issue double-click tavoli sovrapposti (minor)
+## Quick Reference
+
+### One-liner Proxmox Install
+```bash
+bash -c "$(wget -qLO - https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/develop/scripts/proxmox/install-lxc.sh)"
+```
+
+### Override Token (blocco -10gg)
+```
+VILLA-PARIS-ADMIN-2026
+```
+
+### Test URLs
+- Dashboard: `/dashboard`
+- Report: `/report/azienda`
+- Excel: `/api/report/azienda.xlsx`
+
+---
+
+## Backlog
+- [ ] Issue double-click tavoli sovrapposti (P2)
 - [ ] Restore versione precedente
-- [ ] Export/import eventi
 - [ ] Multi-utente con ruoli
-
-## How to Test
-
-### Blocco -10 giorni:
-1. Vai a `/modifica-evento/3` (evento bloccato)
-2. Vedi banner arancione "Evento Bloccato"
-3. Tenta salvataggio → errore 423
-4. Click "Override" → inserisci token `VILLA-PARIS-ADMIN-2026` + motivo (min 10 char)
-5. Salvataggio funziona
-
-### Stampa PDF:
-1. Vai a `/modifica-evento/1`
-2. Click "🖨️ Stampa Documenti"
-3. Seleziona watermark + genera PDF
+- [ ] PDF report grafici
