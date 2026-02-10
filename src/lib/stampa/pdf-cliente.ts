@@ -9,6 +9,9 @@ import pdfMake from 'pdfmake/build/pdfmake'
 // @ts-ignore - pdfmake types don't match runtime
 import pdfFonts from 'pdfmake/build/vfs_fonts'
 import type { Evento, MenuEvento, DisposizioneSala } from '@/lib/types'
+
+// Type alias for pdfmake content
+type Content = any
 import {
   PDFMetadata,
   StampaOptions,
