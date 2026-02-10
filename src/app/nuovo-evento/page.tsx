@@ -44,7 +44,7 @@ export default function NuovoEventoPage() {
   const [evento, setEvento] = useState({
     tipo: "",
     titolo: "",
-    dateProposte: [],
+    dateProposte: [] as string[],
     dataConfermata: "",
     fascia: "pranzo",
     personePreviste: "",
