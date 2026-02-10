@@ -442,8 +442,7 @@ export function generaPDFOperativo(
 ): void {
   const metadata = buildMetadata(evento, options)
   
-  // @ts-ignore - pdfmake type definitions are incomplete
-  const docDefinition: TDocumentDefinitions = {
+  const docDefinition: any = {
     pageSize: 'A4',
     pageMargins: [40, 60, 40, 60],
     
@@ -459,7 +458,7 @@ export function generaPDFOperativo(
       ...buildFogliServizio(evento.menu, evento.disposizioneSala)
     ],
     
-    styles: PDF_STYLES as any,
+    styles: PDF_STYLES,
     
     defaultStyle: {
       font: 'Roboto'
