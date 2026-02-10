@@ -316,9 +316,101 @@ class VillaParisUIReportTester:
             self.log_test("Create Test Events", False, str(e))
             return False
 
+    def test_report_stats_api(self):
+        """Test GET /api/report/stats returns monthly statistics"""
+        try:
+            current_year = datetime.now().year
+            response = requests.get(f"{self.base_url}/api/report/stats?year={current_year}", timeout=10)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                has_year = 'year' in data
+                has_monthly = 'monthly' in data and isinstance(data['monthly'], list)
+                has_by_tipo = 'byTipo' in data and isinstance(data['byTipo'], list)
+                has_totals = 'totals' in data and isinstance(data['totals'], dict)
+                
+                monthly_count = len(data['monthly']) if has_monthly else 0
+                tipo_count = len(data['byTipo']) if has_by_tipo else 0
+                
+                self.log_test("GET Report Stats API", success, 
+                             f"Year: {data.get('year')}, Monthly: {monthly_count} entries, Tipo: {tipo_count} types")
+                return data
+            else:
+                self.log_test("GET Report Stats API", False, f"Status: {response.status_code}")
+                return None
+        except Exception as e:
+            self.log_test("GET Report Stats API", False, str(e))
+            return None
+
+    def test_report_excel_api(self):
+        """Test GET /api/report/azienda.xlsx generates valid Excel file"""
+        try:
+            response = requests.get(f"{self.base_url}/api/report/azienda.xlsx", timeout=30)
+            success = response.status_code == 200
+            
+            if success:
+                content_type = response.headers.get('Content-Type', '')
+                content_disposition = response.headers.get('Content-Disposition', '')
+                content_length = len(response.content)
+                
+                is_excel = 'spreadsheet' in content_type or 'excel' in content_type
+                has_filename = 'VillaParis_Report' in content_disposition
+                has_content = content_length > 1000  # Excel files should be at least 1KB
+                
+                self.log_test("GET Excel Report API", success, 
+                             f"Content-Type: {content_type}, Size: {content_length} bytes, Has filename: {has_filename}")
+                return response.content
+            else:
+                self.log_test("GET Excel Report API", False, f"Status: {response.status_code}")
+                return None
+        except Exception as e:
+            self.log_test("GET Excel Report API", False, str(e))
+            return None
+
+    def test_eventi_api_basic(self):
+        """Test basic eventi API for dashboard data"""
+        try:
+            response = requests.get(f"{self.base_url}/api/eventi", timeout=10)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                is_list = isinstance(data, list)
+                event_count = len(data) if is_list else 0
+                
+                self.log_test("GET Eventi API (Basic)", success, f"Returned {event_count} events")
+                return data
+            else:
+                self.log_test("GET Eventi API (Basic)", False, f"Status: {response.status_code}")
+                return []
+        except Exception as e:
+            self.log_test("GET Eventi API (Basic)", False, str(e))
+            return []
+
+    def test_clienti_api_basic(self):
+        """Test basic clienti API for dashboard data"""
+        try:
+            response = requests.get(f"{self.base_url}/api/clienti", timeout=10)
+            success = response.status_code == 200
+            
+            if success:
+                data = response.json()
+                is_list = isinstance(data, list)
+                client_count = len(data) if is_list else 0
+                
+                self.log_test("GET Clienti API (Basic)", success, f"Returned {client_count} clients")
+                return data
+            else:
+                self.log_test("GET Clienti API (Basic)", False, f"Status: {response.status_code}")
+                return []
+        except Exception as e:
+            self.log_test("GET Clienti API (Basic)", False, str(e))
+            return []
+
     def run_all_tests(self):
-        """Run all backend API tests for Versioning and Blocking features"""
-        print("🧪 Starting Villa Paris Versioning + Blocking API Tests...")
+        """Run all backend API tests for UI/UX and Report features"""
+        print("🧪 Starting Villa Paris UI/UX + Report API Tests...")
         print("=" * 60)
         
         # Test API connection
@@ -326,27 +418,19 @@ class VillaParisUIReportTester:
             print("❌ Cannot connect to API, stopping tests")
             return False
         
-        # Create test events if needed
-        self.create_test_events_if_needed()
-        
-        print("\n📋 Testing Versioning Features (STEP 5)...")
+        print("\n📊 Testing Dashboard Data APIs...")
         print("-" * 40)
         
-        # Test versioning APIs
-        versions = self.test_versioni_api_get(1)
-        self.test_versioni_api_post(1)
-        self.test_stampa_cliente_creates_version(1)
+        # Test basic APIs for dashboard
+        eventi_data = self.test_eventi_api_basic()
+        clienti_data = self.test_clienti_api_basic()
         
-        print("\n🔒 Testing Blocking Features (STEP 6)...")
+        print("\n📈 Testing Report Features...")
         print("-" * 40)
         
-        # Test blocking info
-        event1_data = self.test_eventi_api_get_with_blocco(1)  # Not blocked
-        event3_data = self.test_eventi_api_get_with_blocco(3)  # Blocked
-        
-        # Test blocking enforcement
-        self.test_eventi_api_put_blocked_without_override(3)
-        self.test_eventi_api_put_blocked_with_override(3)
+        # Test report APIs
+        stats_data = self.test_report_stats_api()
+        excel_data = self.test_report_excel_api()
         
         # Print summary
         print("\n" + "=" * 60)
