@@ -67,6 +67,7 @@ export async function PUT(req: Request) {
     const updated = await prisma.menuBase.update({
       where: { id },
       data: {
+        nome: body.nome,
         struttura: body.struttura
       }
     })
