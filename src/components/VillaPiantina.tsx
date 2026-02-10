@@ -43,7 +43,7 @@ export default function VillaPiantina({
   const safeDisposizione = {
     tavoli: Array.isArray(disposizione?.tavoli) ? disposizione.tavoli : [],
     stazioni: Array.isArray(disposizione?.stazioni) ? disposizione.stazioni : [],
-    immagine: disposizione?.immagine || null
+    immagine: disposizione?.immagine || undefined
   }
 
   const handleDragEnd = (tipo: 'tavolo' | 'stazione', id: number, nuovaPosPerc: { x: number, y: number }) => {
@@ -52,12 +52,12 @@ export default function VillaPiantina({
       const nuoviTavoli = safeDisposizione.tavoli.map(t =>
         t.id === id ? { ...t, posizione: { xPerc: nuovaPosPerc.x, yPerc: nuovaPosPerc.y } } : t
       )
-      onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage })
+      onChange({ ...safeDisposizione, tavoli: nuoviTavoli, immagine: backgroundImage ?? undefined })
     } else {
       const nuoveStazioni = safeDisposizione.stazioni.map(s =>
         s.id === id ? { ...s, posizione: { xPerc: nuovaPosPerc.x, yPerc: nuovaPosPerc.y } } : s
       )
-      onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage })
+      onChange({ ...safeDisposizione, stazioni: nuoveStazioni, immagine: backgroundImage ?? undefined })
     }
   }
 
