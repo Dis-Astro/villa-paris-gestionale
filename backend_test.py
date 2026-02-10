@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Backend API Test for Villa Paris Gestionale - Versioning + Blocking Features
-Testing STEP 5 (Versioning) and STEP 6 (Blocco -10 giorni) functionality
+Backend API Test for Villa Paris Gestionale - UI/UX + Report Features
+Testing AppShell/Sidebar navigation and Report Azienda functionality
 """
 
 import requests
@@ -9,7 +9,7 @@ import json
 import sys
 from datetime import datetime, timedelta
 
-class VillaParisVersioningBlockingTester:
+class VillaParisUIReportTester:
     def __init__(self, base_url="http://localhost:3000"):
         self.base_url = base_url
         self.tests_run = 0
