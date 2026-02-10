@@ -188,7 +188,7 @@ export default function VillaPiantina({
           dimensionePerc: { larghezzaPerc: 0.15, altezzaPerc: 0.06 }
         }
       ],
-      immagine: backgroundImage
+      immagine: backgroundImage ?? undefined
     })
   }
 
