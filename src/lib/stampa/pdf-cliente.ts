@@ -339,8 +339,7 @@ export function generaPDFCliente(
 ): void {
   const metadata = buildMetadata(evento, options)
   
-  // @ts-ignore - pdfmake type definitions are incomplete
-  const docDefinition: TDocumentDefinitions = {
+  const docDefinition: any = {
     pageSize: 'A4',
     pageMargins: [40, 60, 40, 60],
     
@@ -356,7 +355,7 @@ export function generaPDFCliente(
       ...buildFirmePage(metadata)
     ],
     
-    styles: PDF_STYLES as any,
+    styles: PDF_STYLES,
     
     defaultStyle: {
       font: 'Roboto'
