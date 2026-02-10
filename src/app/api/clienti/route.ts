@@ -13,7 +13,9 @@ export async function GET(req: Request) {
         where: { id: Number(id) },
         include: {
           eventi: {
-            orderBy: { dataConfermata: 'asc' }
+            include: {
+              evento: true
+            }
           }
         }
       })
