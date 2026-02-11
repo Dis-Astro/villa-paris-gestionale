@@ -214,6 +214,33 @@ export default function DashboardPage() {
         </Card>
       </div>
 
+      {/* Statistiche Appuntamenti */}
+      <Card className="bg-gradient-to-r from-purple-50 to-violet-50 border-purple-200">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="p-3 bg-purple-100 rounded-full">
+                <Phone className="w-6 h-6 text-purple-600" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Appuntamenti Clienti</h3>
+                <p className="text-sm text-gray-500">Clicca sul calendario per creare un appuntamento rapido</p>
+              </div>
+            </div>
+            <div className="flex gap-6">
+              <div className="text-center">
+                <p className="text-3xl font-bold text-purple-600">{stats.appuntamentiMese}</p>
+                <p className="text-sm text-gray-500">Questo mese</p>
+              </div>
+              <div className="text-center">
+                <p className="text-3xl font-bold text-gray-700">{stats.appuntamentiAnno}</p>
+                <p className="text-sm text-gray-500">Anno {new Date().getFullYear()}</p>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Two column layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Prossimo evento */}
