@@ -111,44 +111,59 @@ export default function ModificaEventoPage() {
 
     const overrideHeaders = getOverrideHeaders()
 
-    const res = await fetch(`/api/eventi?id=${id}`, {
-      method: 'PUT',
-      headers: { 
-        'Content-Type': 'application/json',
-        ...overrideHeaders
-      },
-      body: JSON.stringify({
-        tipo: evento.tipo,
-        titolo: evento.titolo,
-        dataConfermata: evento.dataConfermata || null,
-        fascia: evento.fascia,
-        stato: evento.stato,
-        personePreviste: evento.personePreviste ? parseInt(evento.personePreviste) : null,
-        note: evento.note,
-        menu: evento.menu,
-        struttura: evento.struttura,
-        dateProposte: evento.dateProposte,
-        disposizioneSala: evento.disposizioneSala || null,
-        sposa: evento.sposa,
-        sposo: evento.sposo,
-        luogo: evento.luogo,
-        prezzo: evento.prezzo ? parseFloat(evento.prezzo) : null,
-        menuPasto: evento.menuPasto,
-        menuBuffet: evento.menuBuffet
+    try {
+      const res = await fetch(`/api/eventi?id=${id}`, {
+        method: 'PUT',
+        headers: { 
+          'Content-Type': 'application/json',
+          ...overrideHeaders
+        },
+        body: JSON.stringify({
+          tipo: evento.tipo,
+          titolo: evento.titolo,
+          dataConfermata: evento.dataConfermata || null,
+          fascia: evento.fascia,
+          stato: evento.stato,
+          personePreviste: evento.personePreviste ? parseInt(evento.personePreviste) : null,
+          note: evento.note,
+          menu: evento.menu,
+          struttura: evento.struttura,
+          dateProposte: evento.dateProposte,
+          disposizioneSala: evento.disposizioneSala || null,
+          sposa: evento.sposa,
+          sposo: evento.sposo,
+          luogo: evento.luogo,
+          prezzo: evento.prezzo ? parseFloat(evento.prezzo) : null,
+          menuPasto: evento.menuPasto,
+          menuBuffet: evento.menuBuffet
+        })
       })
-    })
 
-    if (res.status === 423) {
-      const errorData = await res.json()
-      setStatus(`🔒 ${errorData.message}`)
+      if (res.status === 423) {
+        const errorData = await res.json()
+        setStatus(`🔒 ${errorData.message}`)
+        setIsSaving(false)
+        return
+      }
+
+      if (!res.ok) {
+        const errorText = await res.text()
+        setStatus(`❌ Errore: ${errorText}`)
+        setIsSaving(false)
+        setTimeout(() => setStatus(''), 5000)
+        return
+      }
+
+      clearOverrideHeaders()
+      setStatus('✅ Evento salvato con successo!')
       setIsSaving(false)
-      return
+      setTimeout(() => setStatus(''), 3000)
+    } catch (error) {
+      console.error('Errore salvataggio evento:', error)
+      setStatus('❌ Errore di connessione')
+      setIsSaving(false)
+      setTimeout(() => setStatus(''), 5000)
     }
-
-    clearOverrideHeaders()
-    setStatus(res.ok ? '✅ Modificato con successo' : '❌ Errore nel salvataggio')
-    setIsSaving(false)
-    setTimeout(() => setStatus(''), 3000)
   }
 
   const handleCreaVersione = async (tipo: string, tipoDoc: string): Promise<number> => {
