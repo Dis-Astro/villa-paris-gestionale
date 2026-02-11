@@ -7,8 +7,31 @@ import dayGridPlugin from "@fullcalendar/daygrid"
 import interactionPlugin from "@fullcalendar/interaction"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Calendar, Plus, ChevronLeft, Edit, Trash2, CalendarOff, Eye } from "lucide-react"
-import Link from "next/link"
+import { Input } from "@/components/ui/input"
+import { 
+  Calendar, 
+  Plus, 
+  Edit, 
+  Trash2, 
+  CalendarOff, 
+  UserPlus,
+  X,
+  Phone,
+  Mail,
+  Clock,
+  Users
+} from "lucide-react"
+
+// Tipi evento incluso Appuntamento
+const TIPI_EVENTO = [
+  { tipo: "Appuntamento", colore: "#8B5CF6" },  // Viola
+  { tipo: "Matrimonio", colore: "#10B981" },
+  { tipo: "Compleanno", colore: "#F59E0B" },
+  { tipo: "Comunione", colore: "#3B82F6" },
+  { tipo: "Battesimo", colore: "#EC4899" },
+  { tipo: "Festa Privata/Aziendale", colore: "#EF4444" },
+  { tipo: "Altro", colore: "#6B7280" }
+]
 
 export default function CalendarioPage() {
   const router = useRouter()
@@ -17,8 +40,31 @@ export default function CalendarioPage() {
   const [eventiDelGiorno, setEventiDelGiorno] = useState<any[]>([])
   const [calendarKey, setCalendarKey] = useState(0)
   const [dateNascoste, setDateNascoste] = useState<string[]>([])
+  
+  // Modal appuntamento rapido
+  const [showAppuntamento, setShowAppuntamento] = useState(false)
+  const [appuntamento, setAppuntamento] = useState({
+    nome: '',
+    telefono: '',
+    email: '',
+    ora: '10:00',
+    note: ''
+  })
+  const [isSaving, setIsSaving] = useState(false)
+  const [status, setStatus] = useState('')
 
-  useEffect(() => {
+  // Statistiche appuntamenti
+  const appuntamentiAnno = eventi.filter(e => e.tipo === 'Appuntamento').length
+  const appuntamentiMese = eventi.filter(e => {
+    if (e.tipo !== 'Appuntamento') return false
+    const data = e.dataConfermata || e.dateProposte?.[0]
+    if (!data) return false
+    const d = new Date(data)
+    const now = new Date()
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
+  }).length
+
+  const fetchEventi = () => {
     fetch("/api/eventi")
       .then((res) => res.json())
       .then((data) => {
@@ -33,13 +79,20 @@ export default function CalendarioPage() {
         })
         setEventi(parsed)
       })
+  }
+
+  useEffect(() => {
+    fetchEventi()
   }, [calendarKey])
 
   const handleDateClick = (arg: any) => {
     const data = arg.dateStr
     setDataSelezionata(data)
-    setCalendarKey((prev) => prev + 1)
     filtraEventiPerData(data)
+    // Mostra modal appuntamento rapido
+    setShowAppuntamento(true)
+    setAppuntamento({ nome: '', telefono: '', email: '', ora: '10:00', note: '' })
+    setStatus('')
   }
 
   const filtraEventiPerData = (data: string) => {
@@ -50,13 +103,8 @@ export default function CalendarioPage() {
   }
 
   const colorePerTipo = (tipo: string) => {
-    switch (tipo) {
-      case "Matrimonio": return "#10B981"
-      case "Compleanno": return "#F59E0B"
-      case "Comunione": return "#3B82F6"
-      case "Festa Privata/Aziendale": return "#EF4444"
-      default: return "#6B7280"
-    }
+    const found = TIPI_EVENTO.find(t => t.tipo === tipo)
+    return found?.colore || "#6B7280"
   }
 
   const statoLabel = (stato: string) => {
@@ -72,7 +120,11 @@ export default function CalendarioPage() {
     const colore = colorePerTipo(evento.tipo)
     const result: any[] = []
     if (evento.dataConfermata && !dateNascoste.includes(evento.dataConfermata)) {
-      result.push({ title: evento.titolo, date: evento.dataConfermata, color: colore })
+      result.push({ 
+        title: evento.tipo === 'Appuntamento' ? `📞 ${evento.titolo}` : evento.titolo, 
+        date: evento.dataConfermata, 
+        color: colore 
+      })
     }
     if (Array.isArray(evento.dateProposte)) {
       result.push(...evento.dateProposte.filter((d: string) => !dateNascoste.includes(d)).map((d: string) => ({
@@ -95,6 +147,53 @@ export default function CalendarioPage() {
     setCalendarKey(prev => prev + 1)
   }
 
+  // Salva appuntamento rapido
+  const salvaAppuntamento = async () => {
+    if (!appuntamento.nome.trim()) {
+      setStatus('❌ Inserisci il nome del cliente')
+      return
+    }
+
+    setIsSaving(true)
+    setStatus('Salvataggio...')
+
+    try {
+      const res = await fetch('/api/eventi', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'Appuntamento',
+          titolo: `Appuntamento - ${appuntamento.nome}`,
+          dateProposte: [dataSelezionata],
+          dataConfermata: dataSelezionata,
+          fascia: 'pranzo',
+          stato: 'confermato',
+          note: `Ora: ${appuntamento.ora}\nTelefono: ${appuntamento.telefono}\n${appuntamento.note}`,
+          clienti: [{
+            nome: appuntamento.nome,
+            email: appuntamento.email || `${appuntamento.nome.toLowerCase().replace(/\s+/g, '.')}@appuntamento.local`,
+            telefono: appuntamento.telefono
+          }]
+        })
+      })
+
+      if (res.ok) {
+        setStatus('✅ Appuntamento salvato!')
+        setTimeout(() => {
+          setShowAppuntamento(false)
+          setCalendarKey(prev => prev + 1)
+        }, 1000)
+      } else {
+        const err = await res.text()
+        setStatus(`❌ Errore: ${err}`)
+      }
+    } catch (error) {
+      setStatus('❌ Errore di connessione')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
   return (
     <div className="space-y-6" data-testid="calendario-page">
       {/* Header */}
@@ -104,9 +203,20 @@ export default function CalendarioPage() {
             <Calendar className="w-7 h-7 text-amber-500" />
             Calendario Eventi
           </h1>
-          <p className="text-gray-500">Visualizza e gestisci tutti gli eventi</p>
+          <p className="text-gray-500">Clicca su una data per creare un appuntamento</p>
         </div>
         <div className="flex items-center gap-3">
+          {/* Statistiche Appuntamenti */}
+          <div className="hidden sm:flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-purple-100 rounded-full">
+              <Phone className="w-4 h-4 text-purple-600" />
+              <span className="text-purple-700 font-medium">{appuntamentiMese} questo mese</span>
+            </div>
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full">
+              <Users className="w-4 h-4 text-gray-600" />
+              <span className="text-gray-700 font-medium">{appuntamentiAnno} anno</span>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
             <label className="text-sm font-medium text-gray-600">Vai a:</label>
             <input
@@ -158,8 +268,141 @@ export default function CalendarioPage() {
         </CardContent>
       </Card>
 
+      {/* Modal Appuntamento Rapido */}
+      {showAppuntamento && dataSelezionata && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <Card className="w-full max-w-md" data-testid="modal-appuntamento">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <CardTitle className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-purple-500" />
+                Nuovo Appuntamento
+              </CardTitle>
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => setShowAppuntamento(false)}
+              >
+                <X className="w-4 h-4" />
+              </Button>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="bg-purple-50 p-3 rounded-lg text-center">
+                <p className="text-purple-700 font-medium">
+                  {new Date(dataSelezionata).toLocaleDateString('it-IT', { 
+                    weekday: 'long', 
+                    day: 'numeric', 
+                    month: 'long',
+                    year: 'numeric'
+                  })}
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Nome Cliente *
+                </label>
+                <Input
+                  value={appuntamento.nome}
+                  onChange={(e) => setAppuntamento({...appuntamento, nome: e.target.value})}
+                  placeholder="Mario Rossi"
+                  autoFocus
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Phone className="w-4 h-4 inline mr-1" />
+                    Telefono
+                  </label>
+                  <Input
+                    value={appuntamento.telefono}
+                    onChange={(e) => setAppuntamento({...appuntamento, telefono: e.target.value})}
+                    placeholder="333 1234567"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <Clock className="w-4 h-4 inline mr-1" />
+                    Ora
+                  </label>
+                  <Input
+                    type="time"
+                    value={appuntamento.ora}
+                    onChange={(e) => setAppuntamento({...appuntamento, ora: e.target.value})}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <Mail className="w-4 h-4 inline mr-1" />
+                  Email (opzionale)
+                </label>
+                <Input
+                  type="email"
+                  value={appuntamento.email}
+                  onChange={(e) => setAppuntamento({...appuntamento, email: e.target.value})}
+                  placeholder="mario@email.com"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Note
+                </label>
+                <Input
+                  value={appuntamento.note}
+                  onChange={(e) => setAppuntamento({...appuntamento, note: e.target.value})}
+                  placeholder="Motivo appuntamento, preferenze..."
+                />
+              </div>
+
+              {status && (
+                <div className={`px-4 py-2 rounded-lg text-sm ${
+                  status.includes('✅') ? 'bg-green-100 text-green-700' : 
+                  status.includes('❌') ? 'bg-red-100 text-red-700' : 
+                  'bg-blue-100 text-blue-700'
+                }`}>
+                  {status}
+                </div>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowAppuntamento(false)}
+                >
+                  Annulla
+                </Button>
+                <Button
+                  onClick={salvaAppuntamento}
+                  disabled={isSaving}
+                  className="flex-1 bg-purple-500 hover:bg-purple-600"
+                >
+                  {isSaving ? 'Salvataggio...' : 'Conferma Appuntamento'}
+                </Button>
+              </div>
+
+              <div className="text-center">
+                <Button
+                  variant="link"
+                  onClick={() => {
+                    setShowAppuntamento(false)
+                    router.push(`/nuovo-evento?data=${dataSelezionata}`)
+                  }}
+                >
+                  Oppure crea un evento completo →
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Eventi del giorno selezionato */}
-      {dataSelezionata && (
+      {dataSelezionata && eventiDelGiorno.length > 0 && (
         <Card data-testid="eventi-giorno">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -173,77 +416,66 @@ export default function CalendarioPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {eventiDelGiorno.length > 0 ? (
-              <div className="space-y-3">
-                {eventiDelGiorno.map((e) => {
-                  const statoInfo = statoLabel(e.stato)
-                  return (
-                    <div 
-                      key={e.id} 
-                      className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                    >
-                      <div className="flex items-center gap-4">
-                        <div 
-                          className="w-3 h-3 rounded-full"
-                          style={{ backgroundColor: colorePerTipo(e.tipo) }}
-                        />
-                        <div>
-                          <p className="font-semibold text-gray-900">{e.titolo}</p>
-                          <p className="text-sm text-gray-500">{e.tipo}</p>
-                          {e.clienti?.[0]?.cliente && (
-                            <p className="text-sm text-gray-500">
-                              Cliente: {e.clienti[0].cliente.nome}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 rounded-full text-xs font-medium ${statoInfo.color}`}>
-                          {statoInfo.text}
-                        </span>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => router.push(`/modifica-evento/${e.id}`)}
-                            data-testid={`modifica-evento-${e.id}`}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => setDateNascoste(prev => [...prev, dataSelezionata])}
-                          >
-                            <CalendarOff className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="text-red-500 hover:text-red-700"
-                            onClick={() => annullaEvento(e.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+            <div className="space-y-3">
+              {eventiDelGiorno.map((e) => {
+                const statoInfo = statoLabel(e.stato)
+                return (
+                  <div 
+                    key={e.id} 
+                    className="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: colorePerTipo(e.tipo) }}
+                      />
+                      <div>
+                        <p className="font-semibold text-gray-900">
+                          {e.tipo === 'Appuntamento' && '📞 '}
+                          {e.titolo}
+                        </p>
+                        <p className="text-sm text-gray-500">{e.tipo}</p>
+                        {e.clienti?.[0]?.cliente && (
+                          <p className="text-sm text-gray-500">
+                            Cliente: {e.clienti[0].cliente.nome}
+                          </p>
+                        )}
                       </div>
                     </div>
-                  )
-                })}
-              </div>
-            ) : (
-              <div className="text-center py-8 text-gray-500">
-                <Calendar className="w-12 h-12 mx-auto mb-2 text-gray-300" />
-                <p>Nessun evento per questa data</p>
-                <Button 
-                  variant="link" 
-                  className="mt-2"
-                  onClick={() => router.push(`/nuovo-evento?data=${dataSelezionata}`)}
-                >
-                  Crea un nuovo evento
-                </Button>
-              </div>
-            )}
+                    <div className="flex items-center gap-3">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${statoInfo.color}`}>
+                        {statoInfo.text}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => router.push(`/modifica-evento/${e.id}`)}
+                          data-testid={`modifica-evento-${e.id}`}
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => setDateNascoste(prev => [...prev, dataSelezionata])}
+                        >
+                          <CalendarOff className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-red-500 hover:text-red-700"
+                          onClick={() => annullaEvento(e.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </CardContent>
         </Card>
       )}
@@ -255,19 +487,16 @@ export default function CalendarioPage() {
         </CardHeader>
         <CardContent>
           <div className="flex flex-wrap gap-4">
-            {[
-              { tipo: "Matrimonio", colore: "#10B981" },
-              { tipo: "Compleanno", colore: "#F59E0B" },
-              { tipo: "Comunione", colore: "#3B82F6" },
-              { tipo: "Festa Privata/Aziendale", colore: "#EF4444" },
-              { tipo: "Altro", colore: "#6B7280" }
-            ].map(item => (
+            {TIPI_EVENTO.map(item => (
               <div key={item.tipo} className="flex items-center gap-2">
                 <div 
                   className="w-3 h-3 rounded-full"
                   style={{ backgroundColor: item.colore }}
                 />
-                <span className="text-sm text-gray-600">{item.tipo}</span>
+                <span className="text-sm text-gray-600">
+                  {item.tipo === 'Appuntamento' && '📞 '}
+                  {item.tipo}
+                </span>
               </div>
             ))}
           </div>
