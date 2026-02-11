@@ -1,73 +1,58 @@
 # Villa Paris Gestionale - PRD
 
-## Problema Originale
-Applicazione gestionale per "Villa Paris" - location per wedding e eventi. Gestione completa di eventi, clienti, menu e disposizione sala.
-
 ## Stato: ✅ FUNZIONANTE (Feb 2025)
 
-### Funzionalità Implementate e Testate
+## Funzionalità Implementate
 
-| Feature | Stato | Test |
-|---------|-------|------|
-| Dashboard con KPI | ✅ | Passato |
-| Calendario Eventi | ✅ | Passato |
-| Gestione Eventi CRUD | ✅ | Passato |
-| Anagrafica Clienti | ✅ | Passato |
-| Menu Base (template) | ✅ | Passato |
-| Piantina Drag&Drop | ✅ | Passato |
-| Varianti Alimentari | ✅ | Passato |
-| Stampe PDF | ✅ | Passato |
-| Versioning Eventi | ✅ | Passato |
-| Blocco -10 giorni | ✅ | Passato |
-| Report & Grafici | ✅ | Passato |
-| Export Excel | ✅ | Passato |
-| Impostazioni | ✅ | Passato |
+### Sistema Appuntamenti Rapidi (NUOVO)
+- **1 click sul calendario** → Modal appuntamento rapido
+- Campi: Nome, Telefono, Ora, Email, Note
+- Salvataggio crea evento tipo "Appuntamento" con icona 📞
+- **Statistiche appuntamenti** visibili su:
+  - Header Calendario: "X questo mese" + "X anno"
+  - Dashboard: Card dedicata con contatori
+- **Legenda** aggiornata con "📞 Appuntamento" (colore viola)
 
-### Architettura
+### Gestione Eventi
+- ✅ Creazione nuovo evento
+- ✅ Modifica evento con feedback "✅ Evento salvato!"
+- ✅ Blocco automatico a -10 giorni con override admin
+- ✅ Versioning e snapshot
 
-```
-/app
-├── src/app/(app)/       # Pagine con layout AppShell
-│   ├── dashboard/       # Homepage KPI
-│   ├── calendario/      # Vista calendario
-│   ├── eventi/          # Lista eventi
-│   ├── clienti/         # Anagrafica
-│   ├── menu-base/       # Template menu
-│   ├── modifica-evento/ # Modifica evento
-│   ├── piantina-evento/ # Disposizione sala
-│   ├── nuovo-evento/    # Nuovo evento
-│   ├── report/          # Reportistica
-│   ├── stampe/          # Generazione PDF
-│   └── impostazioni/    # Configurazione
-├── src/app/api/         # API Routes
-├── src/components/      # Componenti UI
-│   ├── layout/          # AppShell
-│   ├── nav/             # Sidebar, Topbar
-│   └── stampe/          # PDF generation
-├── prisma/              # Schema DB
-└── scripts/             # Deploy Proxmox
-```
+### Altre Funzionalità
+- Dashboard con KPI
+- Calendario interattivo
+- Menu Base (template)
+- Piantina drag&drop con varianti
+- Stampe PDF (pdfmake)
+- Report e export Excel
+- Impostazioni
 
-### Stack Tecnologico
-- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS, shadcn/ui
-- **Backend**: Next.js API Routes, Prisma ORM
-- **Database**: SQLite (dev) / PostgreSQL (prod)
-- **Librerie**: pdfmake, exceljs, react-dnd, recharts, fullcalendar
+## Tipi Evento (Legenda)
+| Tipo | Colore | Icona |
+|------|--------|-------|
+| Appuntamento | Viola (#8B5CF6) | 📞 |
+| Matrimonio | Verde (#10B981) | |
+| Compleanno | Arancione (#F59E0B) | |
+| Comunione | Blu (#3B82F6) | |
+| Battesimo | Rosa (#EC4899) | |
+| Festa Privata/Aziendale | Rosso (#EF4444) | |
+| Altro | Grigio (#6B7280) | |
 
-### Test Report
-- Backend: 12/12 test passati (100%)
-- Frontend: Tutti i flussi verificati (100%)
-- File test: `/app/test_reports/backend_test.py`
+## Bug Corretti (Feb 2025)
+- ✅ `cognome` ora opzionale nel modello Cliente
+- ✅ Salvataggio eventi con feedback visivo
+- ✅ Gestione errori migliorata nelle API
 
-### Credenziali
+## Test
+- Backend: 100% (7/7 test passati)
+- Frontend: 100% (tutte le funzionalità verificate)
+- File: `/app/test_reports/iteration_8.json`
+
+## Stack
+- Next.js 15, React 19, TypeScript, Tailwind, shadcn/ui
+- Prisma ORM + SQLite (dev) / PostgreSQL (prod)
+- pdfmake, exceljs, react-dnd, recharts, fullcalendar
+
+## Credenziali
 - **Admin Override Token**: `VILLA-PARIS-ADMIN-2026`
-
-### Deployment Proxmox
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/.../install-lxc.sh)
-```
-
-## Backlog (Priorità Bassa)
-- [ ] Ripristino versione evento
-- [ ] Issue doppio click tavoli sovrapposti
-- [ ] Notifiche email
