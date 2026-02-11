@@ -34,7 +34,9 @@ export default function DashboardPage() {
     clientiTotali: 0,
     ricaviMese: 0,
     ospitiMese: 0,
-    prossimoEvento: null
+    prossimoEvento: null,
+    appuntamentiMese: 0,
+    appuntamentiAnno: 0
   })
   const [recentEvents, setRecentEvents] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
