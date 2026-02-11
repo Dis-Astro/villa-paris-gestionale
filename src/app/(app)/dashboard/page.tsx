@@ -22,6 +22,8 @@ interface DashboardStats {
   ricaviMese: number
   ospitiMese: number
   prossimoEvento: any | null
+  appuntamentiMese: number
+  appuntamentiAnno: number
 }
 
 export default function DashboardPage() {
