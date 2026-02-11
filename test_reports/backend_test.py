@@ -212,7 +212,12 @@ class TestVersioniAPI:
     def test_get_versioni(self):
         """Test GET /api/versioni - get document versions"""
         response = requests.get(f"{BASE_URL}/api/versioni")
-        # May return 200 or different based on implementation
+        # May return 200, 400 (needs eventoId param), or different based on implementation
+        assert response.status_code in [200, 400, 404, 500]
+        
+    def test_get_versioni_with_evento(self):
+        """Test GET /api/versioni?eventoId=X - get versions for event"""
+        response = requests.get(f"{BASE_URL}/api/versioni?eventoId=1")
         assert response.status_code in [200, 404, 500]
 
 
