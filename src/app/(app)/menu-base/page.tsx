@@ -94,6 +94,15 @@ export default function MenuBasePage() {
   }, [])
 
   const handleSave = async () => {
+    if (!formData.nome.trim()) {
+      setStatus('❌ Inserisci il nome del menu')
+      setTimeout(() => setStatus(''), 3000)
+      return
+    }
+
+    setIsSaving(true)
+    setStatus('Salvataggio in corso...')
+
     const payload = {
       nome: formData.nome,
       struttura: {
@@ -115,11 +124,23 @@ export default function MenuBasePage() {
       })
 
       if (res.ok) {
-        fetchMenu()
-        resetForm()
+        setStatus('✅ Menu salvato con successo!')
+        await fetchMenu()
+        setTimeout(() => {
+          resetForm()
+          setStatus('')
+        }, 1500)
+      } else {
+        const error = await res.text()
+        setStatus(`❌ Errore: ${error}`)
+        setTimeout(() => setStatus(''), 3000)
       }
     } catch (error) {
       console.error('Errore nel salvataggio:', error)
+      setStatus('❌ Errore di connessione')
+      setTimeout(() => setStatus(''), 3000)
+    } finally {
+      setIsSaving(false)
     }
   }
 
