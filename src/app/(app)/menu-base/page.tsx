@@ -248,15 +248,30 @@ export default function MenuBasePage() {
             {editingMenu ? 'Modifica Menu Base' : 'Nuovo Menu Base'}
           </h1>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={resetForm}>
+            <Button variant="outline" onClick={resetForm} disabled={isSaving}>
               Annulla
             </Button>
-            <Button onClick={handleSave} className="bg-amber-500 hover:bg-amber-600">
+            <Button 
+              onClick={handleSave} 
+              className="bg-amber-500 hover:bg-amber-600"
+              disabled={isSaving}
+            >
               <Save className="w-4 h-4 mr-2" />
-              Salva
+              {isSaving ? 'Salvataggio...' : 'Salva'}
             </Button>
           </div>
         </div>
+
+        {/* Status Message */}
+        {status && (
+          <div className={`px-4 py-3 rounded-lg text-sm font-medium ${
+            status.includes('✅') ? 'bg-green-100 text-green-700 border border-green-200' : 
+            status.includes('❌') ? 'bg-red-100 text-red-700 border border-red-200' : 
+            'bg-blue-100 text-blue-700 border border-blue-200'
+          }`}>
+            {status}
+          </div>
+        )}
 
         {/* Info Menu */}
         <Card>
