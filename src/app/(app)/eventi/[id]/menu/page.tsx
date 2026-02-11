@@ -141,11 +141,9 @@ export default function MenuEventoPage() {
       portate[newIdx] = temp
       
       // Ricalcola ordine e ritorna MenuEvento completo
-      const nuovePortate = portate.map((p, i) => ({ ...p, ordine: i + 1 }))
       return {
-        portate: nuovePortate,
-        variantiAttive: prev.variantiAttive,
-        note: prev.note
+        ...prev,
+        portate: portate.map((p, i) => ({ ...p, ordine: i + 1 }))
       }
     })
   }
