@@ -18,9 +18,12 @@ const prisma = new PrismaClient()
 export async function POST(req: Request) {
   try {
     const body = await req.json()
+    console.log('POST /api/eventi - body:', JSON.stringify(body).substring(0, 500))
+    
     const clienteRaw = body.clienti?.[0]
 
     if (!clienteRaw?.email || !clienteRaw?.nome) {
+      console.log('POST /api/eventi - Dati cliente mancanti:', clienteRaw)
       return new NextResponse('Dati cliente mancanti', { status: 400 })
     }
 
@@ -29,15 +32,18 @@ export async function POST(req: Request) {
     })
 
     if (!cliente) {
+      console.log('POST /api/eventi - Creazione nuovo cliente:', clienteRaw.email)
       cliente = await prisma.cliente.create({
         data: {
           nome: clienteRaw.nome,
-          cognome: clienteRaw.cognome,
+          cognome: clienteRaw.cognome || null,
           email: clienteRaw.email,
           telefono: clienteRaw.telefono || null
         }
       })
     }
+
+    console.log('POST /api/eventi - Cliente ID:', cliente.id)
 
     const evento = await prisma.evento.create({
       data: {
@@ -63,6 +69,7 @@ export async function POST(req: Request) {
       }
     })
 
+    console.log('POST /api/eventi - Evento creato ID:', evento.id)
     return NextResponse.json(evento)
   } catch (error) {
     console.error('Errore creazione evento:', error)
