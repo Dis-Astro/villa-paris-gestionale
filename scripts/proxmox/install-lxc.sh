@@ -4,7 +4,8 @@
 # VILLA PARIS GESTIONALE - LXC INSTALLER FOR PROXMOX VE
 # ==============================================================================
 # Community-scripts style installer
-# One-command install: bash -c "$(wget -qLO - https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/develop/scripts/proxmox/install-lxc.sh)"
+# One-command install: 
+#   wget -qO install.sh https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/develop/scripts/proxmox/install-lxc.sh && bash install.sh
 # ==============================================================================
 
 set -euo pipefail
@@ -15,7 +16,6 @@ YW=$(echo "\033[33m")
 GN=$(echo "\033[1;32m")
 CL=$(echo "\033[m")
 BFR="\\r\\033[K"
-HOLD=" "
 CM="${GN}✓${CL}"
 CROSS="${RD}✗${CL}"
 INFO="${YW}➜${CL}"
@@ -31,7 +31,7 @@ DEFAULT_CPU="2"
 DEFAULT_RAM="2048"
 DEFAULT_DISK="8"
 DEFAULT_PORT="3000"
-TEMPLATE="local:vztmpl/ubuntu-22.04-standard_22.04-1_amd64.tar.zst"
+TEMPLATE="local:vztmpl/debian-12-standard_12.7-1_amd64.tar.zst"
 
 # ==============================================================================
 # UTILITY FUNCTIONS
@@ -50,7 +50,7 @@ header() {
    \ \/ / | | | |/ _` ||  __/ (_| | |  | \__ \
     \__/  |_|_|_|\__,_||_|   \__,_|_|  |_|___/
                                               
-    GESTIONALE - LXC INSTALLER v1.0
+    GESTIONALE - LXC INSTALLER v1.1
     
 EOF
     echo -e "${GN}Community-Scripts Style Installer for Proxmox VE${CL}\n"
@@ -79,28 +79,126 @@ get_next_ctid() {
 }
 
 download_template() {
-    msg_info "Checking Ubuntu 22.04 template"
-    if ! pveam list local | grep -q "ubuntu-22.04-standard"; then
-        msg_info "Downloading Ubuntu 22.04 template"
-        pveam download local ubuntu-22.04-standard_22.04-1_amd64.tar.zst || {
+    msg_info "Checking Debian 12 template"
+    if ! pveam list local | grep -q "debian-12-standard"; then
+        msg_info "Downloading Debian 12 template"
+        pveam download local debian-12-standard_12.7-1_amd64.tar.zst || {
             msg_error "Failed to download template"
         }
     fi
-    msg_ok "Ubuntu 22.04 template available"
+    msg_ok "Debian 12 template available"
 }
 
 # ==============================================================================
-# WHIPTAIL DIALOGS
+# INPUT COLLECTION (Works with pipe and interactive)
 # ==============================================================================
 
 get_user_input() {
+    local next_ctid=$(get_next_ctid)
+    
+    # Check if whiptail is available and we have a terminal
+    if command -v whiptail &> /dev/null && [[ -t 0 ]]; then
+        get_input_whiptail "$next_ctid"
+    else
+        get_input_cli "$next_ctid"
+    fi
+}
+
+get_input_cli() {
+    local next_ctid="$1"
+    
+    echo ""
+    echo -e "${GN}═══════════════════════════════════════════════════${CL}"
+    echo -e "${GN}         CONFIGURAZIONE CONTAINER LXC              ${CL}"
+    echo -e "${GN}═══════════════════════════════════════════════════${CL}"
+    echo ""
+    
+    # CTID
+    echo -e "${YW}Container ID${CL} [default: $next_ctid]: "
+    read -r CTID
+    [[ -z "$CTID" ]] && CTID="$next_ctid"
+    
+    # Hostname
+    echo -e "${YW}Hostname${CL} [default: $DEFAULT_HOSTNAME]: "
+    read -r HOSTNAME
+    [[ -z "$HOSTNAME" ]] && HOSTNAME="$DEFAULT_HOSTNAME"
+    
+    # CPU
+    echo -e "${YW}CPU Cores${CL} [default: $DEFAULT_CPU]: "
+    read -r CPU
+    [[ -z "$CPU" ]] && CPU="$DEFAULT_CPU"
+    
+    # RAM
+    echo -e "${YW}RAM (MB)${CL} [default: $DEFAULT_RAM]: "
+    read -r RAM
+    [[ -z "$RAM" ]] && RAM="$DEFAULT_RAM"
+    
+    # Disk
+    echo -e "${YW}Disk (GB)${CL} [default: $DEFAULT_DISK]: "
+    read -r DISK
+    [[ -z "$DISK" ]] && DISK="$DEFAULT_DISK"
+    
+    # Network
+    echo -e "${YW}Usare DHCP?${CL} [Y/n]: "
+    read -r use_dhcp
+    if [[ "$use_dhcp" =~ ^[Nn]$ ]]; then
+        echo -e "${YW}IP/CIDR${CL} (es: 192.168.1.100/24): "
+        read -r STATIC_IP
+        echo -e "${YW}Gateway${CL}: "
+        read -r GATEWAY
+        NETWORK="ip=${STATIC_IP},gw=${GATEWAY}"
+        IP_DISPLAY="$STATIC_IP"
+    else
+        NETWORK="dhcp"
+        IP_DISPLAY="DHCP"
+    fi
+    
+    # Port
+    echo -e "${YW}HTTP Port${CL} [default: $DEFAULT_PORT]: "
+    read -r HTTP_PORT
+    [[ -z "$HTTP_PORT" ]] && HTTP_PORT="$DEFAULT_PORT"
+    
+    # Database
+    echo -e "${YW}Usare SQLite?${CL} [Y/n] (n = PostgreSQL): "
+    read -r use_sqlite
+    if [[ "$use_sqlite" =~ ^[Nn]$ ]]; then
+        DB_TYPE="postgresql"
+    else
+        DB_TYPE="sqlite"
+    fi
+    
+    # Confirmation
+    echo ""
+    echo -e "${GN}═══════════════════════════════════════════════════${CL}"
+    echo -e "${GN}              RIEPILOGO CONFIGURAZIONE             ${CL}"
+    echo -e "${GN}═══════════════════════════════════════════════════${CL}"
+    echo ""
+    echo -e "  CTID:       ${YW}$CTID${CL}"
+    echo -e "  Hostname:   ${YW}$HOSTNAME${CL}"
+    echo -e "  CPU:        ${YW}$CPU cores${CL}"
+    echo -e "  RAM:        ${YW}${RAM}MB${CL}"
+    echo -e "  Disk:       ${YW}${DISK}GB${CL}"
+    echo -e "  Network:    ${YW}$IP_DISPLAY${CL}"
+    echo -e "  HTTP Port:  ${YW}$HTTP_PORT${CL}"
+    echo -e "  Database:   ${YW}$DB_TYPE${CL}"
+    echo ""
+    echo -e "${YW}Procedere con l'installazione?${CL} [Y/n]: "
+    read -r confirm
+    if [[ "$confirm" =~ ^[Nn]$ ]]; then
+        echo "Installazione annullata."
+        exit 1
+    fi
+}
+
+get_input_whiptail() {
+    local next_ctid="$1"
+    
     # Welcome
     whiptail --title "$APP_NAME Installer" --msgbox \
         "Questo script installerà $APP_NAME in un nuovo container LXC.\n\nVerranno richieste alcune configurazioni." \
         12 60
 
     # CTID
-    local next_ctid=$(get_next_ctid)
     CTID=$(whiptail --title "Container ID" --inputbox \
         "Inserisci il CTID per il container.\nLascia vuoto per auto-assegnazione (suggerito: $next_ctid)" \
         10 60 "" 3>&1 1>&2 2>&3) || exit 1
@@ -253,7 +351,7 @@ apt-get update -qq
 apt-get upgrade -y -qq
 
 log "Installing dependencies..."
-apt-get install -y -qq curl git build-essential ca-certificates gnupg
+apt-get install -y -qq curl git build-essential ca-certificates gnupg wget
 
 log "Installing Node.js 20 LTS..."
 mkdir -p /etc/apt/keyrings
@@ -292,6 +390,7 @@ cat > "$APP_DIR/.env" << ENVEOF
 # Villa Paris Gestionale Configuration
 NODE_ENV=production
 PORT=$HTTP_PORT
+HOSTNAME=0.0.0.0
 
 # Database
 ENVEOF
@@ -328,7 +427,7 @@ Type=simple
 User=root
 WorkingDirectory=$APP_DIR
 EnvironmentFile=$APP_DIR/.env
-ExecStart=/usr/bin/node $APP_DIR/.next/standalone/server.js
+ExecStart=/usr/bin/yarn --cwd $APP_DIR start
 Restart=always
 RestartSec=10
 StandardOutput=journal
@@ -338,31 +437,6 @@ SyslogIdentifier=villaparis
 [Install]
 WantedBy=multi-user.target
 SERVICEEOF
-
-# Alternative: use yarn start if standalone not available
-if [[ ! -f "$APP_DIR/.next/standalone/server.js" ]]; then
-    cat > /etc/systemd/system/villaparis.service << SERVICEEOF
-[Unit]
-Description=Villa Paris Gestionale
-Documentation=https://github.com/Dis-Astro/villa-paris-gestionale
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=$APP_DIR
-EnvironmentFile=$APP_DIR/.env
-ExecStart=/usr/bin/yarn start
-Restart=always
-RestartSec=10
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=villaparis
-
-[Install]
-WantedBy=multi-user.target
-SERVICEEOF
-fi
 
 log "Enabling and starting service..."
 systemctl daemon-reload
