@@ -75,13 +75,28 @@ export default function DashboardPage() {
 
         const ospitiMese = eventiMese.reduce((sum: number, e: any) => sum + (e.personePreviste || 0), 0)
 
+        // Statistiche appuntamenti
+        const appuntamentiMese = eventi.filter((e: any) => {
+          if (e.tipo !== 'Appuntamento' || !e.dataConfermata) return false
+          const d = new Date(e.dataConfermata)
+          return d.getMonth() === currentMonth && d.getFullYear() === currentYear
+        }).length
+
+        const appuntamentiAnno = eventi.filter((e: any) => {
+          if (e.tipo !== 'Appuntamento' || !e.dataConfermata) return false
+          const d = new Date(e.dataConfermata)
+          return d.getFullYear() === currentYear
+        }).length
+
         setStats({
           eventiMese: eventiMese.length,
           eventiTotali: eventi.length,
           clientiTotali: clienti.length,
           ricaviMese,
           ospitiMese,
-          prossimoEvento: prossimi[0] || null
+          prossimoEvento: prossimi[0] || null,
+          appuntamentiMese,
+          appuntamentiAnno
         })
 
         // Recent events (last 5)
