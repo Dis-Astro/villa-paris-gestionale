@@ -87,7 +87,7 @@ model MenuBase {
 model Cliente {
   id        Int              @id @default(autoincrement())
   nome      String
-  cognome   String
+  cognome   String?
   email     String?
   telefono  String?
   createdAt DateTime         @default(now())
