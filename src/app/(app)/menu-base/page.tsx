@@ -59,6 +59,8 @@ export default function MenuBasePage() {
   const [editingMenu, setEditingMenu] = useState<MenuBase | null>(null)
   const [isCreating, setIsCreating] = useState(false)
   const [expandedMenuId, setExpandedMenuId] = useState<number | null>(null)
+  const [isSaving, setIsSaving] = useState(false)
+  const [status, setStatus] = useState('')
   
   // Form state per nuovo/modifica menu
   const [formData, setFormData] = useState({
