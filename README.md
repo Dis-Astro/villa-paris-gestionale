@@ -1,36 +1,113 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Villa Paris Gestionale
 
-## Getting Started
+Sistema gestionale per location eventi (matrimoni, battesimi, feste).
 
-First, run the development server:
+## Funzionalità
+
+- **Dashboard** con KPI e statistiche
+- **Calendario Eventi** con appuntamenti rapidi (1 click)
+- **Gestione Eventi** completa (CRUD)
+- **Menu Base** - template menu con selezione piatti
+- **Piantina Sala** - drag & drop con varianti alimentari
+- **Stampe PDF** - contratti e documenti operativi
+- **Report** con export Excel
+- **Versioning** - snapshot anti-contestazione
+- **Blocco automatico** - protezione modifiche a -10 giorni
+
+## Quick Start con Docker
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+# Clone repository
+git clone https://github.com/Dis-Astro/villa-paris-gestionale.git
+cd villa-paris-gestionale
+
+# Start con Docker
+docker compose up -d
+
+# App disponibile su http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## Setup Locale (Development)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Prerequisiti
+- Node.js 20+
+- PostgreSQL 16+
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+### Installazione
 
-## Learn More
+```bash
+# Installa dipendenze
+npm ci
 
-To learn more about Next.js, take a look at the following resources:
+# Configura ambiente
+cp .env.example .env
+# Modifica .env con i tuoi dati PostgreSQL
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+# Genera Prisma client e applica migrazioni
+npx prisma generate
+npx prisma migrate dev
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+# Avvia in development
+npm run dev
+```
 
-## Deploy on Vercel
+## Variabili Ambiente
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+| Variabile | Descrizione | Esempio |
+|-----------|-------------|---------|
+| DATABASE_URL | Connection string PostgreSQL | postgresql://user:pass@localhost:5432/db |
+| NODE_ENV | Ambiente | production / development |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Stack Tecnologico
+
+- **Frontend**: Next.js 15, React 19, TypeScript, Tailwind CSS
+- **UI Components**: shadcn/ui
+- **Backend**: Next.js API Routes
+- **Database**: PostgreSQL + Prisma ORM
+- **PDF**: pdfmake
+- **Excel**: exceljs
+- **Calendar**: FullCalendar
+- **Charts**: Recharts
+
+## Struttura Progetto
+
+```
+├── src/
+│   ├── app/
+│   │   ├── (app)/          # Pagine con layout AppShell
+│   │   └── api/            # API Routes
+│   ├── components/         # Componenti React
+│   └── lib/                # Utilities e Prisma client
+├── prisma/
+│   ├── schema.prisma       # Schema database
+│   └── migrations/         # Migrazioni SQL
+├── public/                 # Asset statici
+├── docker/                 # Docker entrypoint
+├── Dockerfile
+└── docker-compose.yml
+```
+
+## Comandi Utili
+
+```bash
+# Development
+npm run dev
+
+# Build produzione
+npm run build
+npm run start
+
+# Prisma
+npx prisma studio      # GUI database
+npx prisma migrate dev # Nuova migrazione
+npx prisma db push     # Sync schema (dev only)
+
+# Docker
+docker compose up -d      # Start
+docker compose down       # Stop
+docker compose logs -f    # Logs
+```
+
+## License
+
+MIT
