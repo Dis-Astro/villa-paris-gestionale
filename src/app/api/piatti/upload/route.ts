@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { writeFile } from 'fs/promises'
+import { writeFile, mkdir } from 'fs/promises'
+import { existsSync } from 'fs'
 import path from 'path'
 import * as xlsx from 'xlsx'
+
+export const runtime = 'nodejs'
+export const dynamic = 'force-dynamic'
 
 export async function POST(req: NextRequest) {
   const formData = await req.formData()
@@ -15,6 +19,12 @@ export async function POST(req: NextRequest) {
   const buffer = Buffer.from(bytes)
 
   const uploadsDir = path.join(process.cwd(), 'public', 'uploads')
+  
+  // Ensure uploads directory exists
+  if (!existsSync(uploadsDir)) {
+    await mkdir(uploadsDir, { recursive: true })
+  }
+  
   const filePath = path.join(uploadsDir, 'menu_servizi.xlsx')
   await writeFile(filePath, buffer)
 
