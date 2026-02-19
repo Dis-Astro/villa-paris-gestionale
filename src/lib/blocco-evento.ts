@@ -3,9 +3,7 @@
  * Utility per gestione blocco modifiche pre-evento
  */
 
-import { PrismaClient } from '@prisma/client'
-
-const prisma = new PrismaClient()
+import prisma from './prisma'
 
 // Campi protetti dal blocco
 export const CAMPI_BLOCCATI = [
