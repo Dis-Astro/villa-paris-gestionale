@@ -3,8 +3,8 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // Modello per gli eventi
@@ -23,12 +23,12 @@ model Evento {
   disposizioneSala Json?
   
   // Campi report aziendale
-  luogo            String?          // Luogo evento (default: Villa Paris)
-  prezzo           Float?           // Prezzo per persona
-  menuPasto        String?          // Descrizione menu pasto
-  menuBuffet       String?          // Descrizione menu buffet
-  sposa            String?          // Nome sposa/festeggiato
-  sposo            String?          // Nome sposo (se matrimonio)
+  luogo            String?
+  prezzo           Float?
+  menuPasto        String?
+  menuBuffet       String?
+  sposa            String?
+  sposo            String?
   
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -42,16 +42,16 @@ model Evento {
 model VersioneEvento {
   id            String   @id @default(uuid())
   eventoId      Int
-  evento        Evento   @relation(fields: [eventoId], references: [id])
+  evento        Evento   @relation(fields: [eventoId], references: [id], onDelete: Cascade)
   
-  numero        Int      // Revisione progressiva per evento (1, 2, 3...)
-  tipo          String   // bozza | contratto | definitivo | AUTO_PRE_STAMPA
-  watermark     String   // BOZZA | CONTRATTO | DEFINITIVO
+  numero        Int
+  tipo          String
+  watermark     String
   
-  snapshot      Json     // Snapshot completo evento
-  hash          String?  // Hash per verifica integrità
+  snapshot      Json
+  hash          String?
   
-  autore        String?  // Utente che ha creato (se disponibile)
+  autore        String?
   commento      String?
   
   createdAt     DateTime @default(now())
@@ -63,18 +63,18 @@ model VersioneEvento {
 model OverrideLog {
   id            String   @id @default(uuid())
   eventoId      Int
-  evento        Evento   @relation(fields: [eventoId], references: [id])
+  evento        Evento   @relation(fields: [eventoId], references: [id], onDelete: Cascade)
   
-  motivo        String   // Motivo obbligatorio
-  autore        String?  // Chi ha fatto override
-  campoModificato String? // Quale campo è stato modificato
+  motivo        String
+  autore        String?
+  campoModificato String?
   
   createdAt     DateTime @default(now())
   
   @@index([eventoId])
 }
 
-// Modello per i menù base
+// Modello per i menu base
 model MenuBase {
   id        Int      @id @default(autoincrement())
   nome      String
@@ -99,8 +99,8 @@ model Cliente {
 // Relazione N:N tra Evento e Cliente
 model EventoCliente {
   id         Int     @id @default(autoincrement())
-  evento     Evento  @relation(fields: [eventoId], references: [id])
+  evento     Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
   eventoId   Int
-  cliente    Cliente @relation(fields: [clienteId], references: [id])
+  cliente    Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   clienteId  Int
 }
