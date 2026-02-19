@@ -1,5 +1,5 @@
-import { PrismaClient } from '@prisma/client'
 import { NextResponse } from 'next/server'
+import prisma from '@/lib/prisma'
 import {
   calcolaInfoBlocco,
   getCampiBloccatiModificati,
@@ -8,11 +8,8 @@ import {
   OVERRIDE_HEADERS
 } from '@/lib/blocco-evento'
 
-// Force Node.js runtime per Prisma
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const prisma = new PrismaClient()
 
 // CREA UN NUOVO EVENTO
 export async function POST(req: Request) {
