@@ -1,12 +1,9 @@
-import { PrismaClient } from '@prisma/client'
 import { NextResponse } from 'next/server'
 import crypto from 'crypto'
+import prisma from '@/lib/prisma'
 
-// Force Node.js runtime per Prisma
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const prisma = new PrismaClient()
 
 /**
  * GET - Lista versioni per evento
