@@ -1,0 +1,108 @@
+name: Deploy to Proxmox LXC
+
+# Scatta ad ogni push su main (o manualmente)
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      force_rebuild:
+        description: 'Forza rebuild Docker (--no-cache)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  deploy:
+    name: Deploy Villa Paris
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      # -----------------------------------------------------------------------
+      # 1. Checkout (per avere il contesto del commit nei log)
+      # -----------------------------------------------------------------------
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # -----------------------------------------------------------------------
+      # 2. Setup SSH
+      # -----------------------------------------------------------------------
+      - name: Setup SSH key
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PROXMOX_SSH_KEY }}" > ~/.ssh/proxmox_key
+          chmod 600 ~/.ssh/proxmox_key
+          # Aggiungi host alla lista known_hosts (evita prompt interattivo)
+          ssh-keyscan -p "${{ secrets.PROXMOX_PORT || 22 }}" \
+            "${{ secrets.PROXMOX_HOST }}" >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      # -----------------------------------------------------------------------
+      # 3. Deploy
+      # -----------------------------------------------------------------------
+      - name: Deploy su container LXC
+        env:
+          PROXMOX_HOST: ${{ secrets.PROXMOX_HOST }}
+          PROXMOX_PORT: ${{ secrets.PROXMOX_PORT || 22 }}
+          PROXMOX_USER: ${{ secrets.PROXMOX_USER }}
+          CT_ID:        ${{ secrets.PROXMOX_CT_ID }}
+          FORCE_REBUILD: ${{ github.event.inputs.force_rebuild || 'false' }}
+        run: |
+          # Determina flag --no-cache
+          BUILD_FLAGS="--build"
+          if [[ "$FORCE_REBUILD" == "true" ]]; then
+            BUILD_FLAGS="--build --no-cache"
+          fi
+
+          # Esegui comandi dentro il container LXC tramite pct exec sul nodo Proxmox
+          ssh -i ~/.ssh/proxmox_key \
+              -p "$PROXMOX_PORT" \
+              -o StrictHostKeyChecking=no \
+              -o ConnectTimeout=30 \
+              "${PROXMOX_USER}@${PROXMOX_HOST}" \
+            "pct exec ${CT_ID} -- bash -c '
+              set -euo pipefail
+              APP_DIR=/opt/villa-paris
+              echo \"[DEPLOY] Inizio deploy - $(date)\"
+              cd \"\$APP_DIR\"
+
+              echo \"[DEPLOY] Git pull...\"
+              git pull origin main
+
+              echo \"[DEPLOY] Docker compose up ${BUILD_FLAGS}...\"
+              docker compose up -d ${BUILD_FLAGS} --remove-orphans
+
+              echo \"[DEPLOY] Attendo avvio servizi...\"
+              sleep 10
+
+              echo \"[DEPLOY] Stato servizi:\"
+              docker compose ps
+
+              echo \"[DEPLOY] Verifica healthcheck...\"
+              for i in \$(seq 1 12); do
+                STATUS=\$(curl -s -o /dev/null -w \"%{http_code}\" --max-time 5 http://localhost:3000 2>/dev/null || echo 000)
+                if echo \"\$STATUS\" | grep -qE \"^(200|301|302|304)$\"; then
+                  echo \"[DEPLOY] App risponde (HTTP \$STATUS)\"
+                  break
+                fi
+                echo \"[DEPLOY] Attendo... (\$i/12, HTTP \$STATUS)\"
+                sleep 5
+              done
+
+              echo \"[DEPLOY] Completato con successo - $(date)\"
+            '"
+
+      # -----------------------------------------------------------------------
+      # 4. Notifica risultato
+      # -----------------------------------------------------------------------
+      - name: Riepilogo deploy
+        if: always()
+        run: |
+          if [ "${{ job.status }}" = "success" ]; then
+            echo "Deploy completato con successo"
+            echo "Commit: ${{ github.sha }}"
+            echo "Branch: ${{ github.ref_name }}"
+          else
+            echo "Deploy fallito - controlla i log"
+          fi
