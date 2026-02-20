@@ -21,11 +21,58 @@ Sistema gestionale per location eventi (matrimoni, battesimi, feste).
 git clone https://github.com/Dis-Astro/villa-paris-gestionale.git
 cd villa-paris-gestionale
 
+# (Opzionale) Configura credenziali personalizzate
+cp .env.example .env
+# Modifica .env con le tue password
+
 # Start con Docker
 docker compose up -d
 
 # App disponibile su http://localhost:3000
 ```
+
+## Deploy su Proxmox VE (One-Liner)
+
+Esegui questo comando come **root** direttamente sul nodo Proxmox:
+
+```bash
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/main/proxmox/install-ct.sh)"
+```
+
+Lo script in automatico:
+1. Crea un container LXC Debian 12 (con `nesting=1` e `keyctl=1` per Docker)
+2. Installa Docker CE + Docker Compose plugin
+3. Clona il repository
+4. Crea il file `.env` con credenziali sicure casuali
+5. Fa il build e avvia l'applicazione con `docker compose`
+6. Stampa IP e URL dell'applicazione al termine
+
+### Parametri personalizzabili (variabili d'ambiente)
+
+```bash
+CTID=200 \
+CT_RAM=4096 \
+CT_DISK=20 \
+CT_IP=192.168.1.50/24 \
+CT_GATEWAY=192.168.1.1 \
+DB_PASS=mia_password_sicura \
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/main/proxmox/install-ct.sh)"
+```
+
+| Variabile | Default | Descrizione |
+|-----------|---------|-------------|
+| `CTID` | auto | ID container LXC |
+| `CT_HOSTNAME` | `villa-paris` | Hostname del container |
+| `CT_CORES` | `2` | CPU cores |
+| `CT_RAM` | `2048` | RAM in MB |
+| `CT_DISK` | `16` | Disco in GB |
+| `CT_BRIDGE` | `vmbr0` | Bridge di rete |
+| `CT_IP` | `dhcp` | IP statico o `dhcp` |
+| `CT_GATEWAY` | — | Gateway (solo con IP statico) |
+| `DB_USER` | `villaparis` | Utente PostgreSQL |
+| `DB_PASS` | casuale | Password PostgreSQL |
+| `DB_NAME` | `villaparis` | Nome database |
+| `REPO_BRANCH` | `main` | Branch Git da clonare |
 
 ## Setup Locale (Development)
 
