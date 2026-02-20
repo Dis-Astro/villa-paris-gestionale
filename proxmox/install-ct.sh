@@ -41,11 +41,14 @@ YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
 NC='\033[0m'
 
-log_info()  { echo -e "${BLUE}[INFO]${NC} $*"; }
-log_ok()    { echo -e "${GREEN}[ OK ]${NC} $*"; }
-log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*"; }
+log_info()  { echo -e "${BLUE}[INFO]${NC} $*" >&2; }
+log_ok()    { echo -e "${GREEN}[ OK ]${NC} $*" >&2; }
+log_warn()  { echo -e "${YELLOW}[WARN]${NC} $*" >&2; }
 log_error() { echo -e "${RED}[ERR ]${NC} $*" >&2; }
 die()       { log_error "$*"; exit 1; }
+
+# Variante stdout per valori di ritorno (usare SOLO in funzioni catturate con $())
+# Nessun log su stdout => zero contaminazione della command substitution
 
 header() {
     echo ""
