@@ -36,7 +36,8 @@ Gestori di Villa Paris (location eventi).
 - [x] docker/entrypoint.sh per migrazioni automatiche all'avvio
 - [x] .env.example completo
 - [x] Script Proxmox one-liner (install-ct.sh + ct-setup.sh)
-- [x] README con istruzioni Docker e Proxmox
+- [x] Bug fix: stdout contaminato in download_template → tutti i log su stderr (>&2)
+- [x] GitHub Actions CI/CD deploy automatico (.github/workflows/deploy.yml)
 
 ### Pulizia & Standardizzazione
 - [x] Rimossi tutti i riferimenti a "Emergent"
