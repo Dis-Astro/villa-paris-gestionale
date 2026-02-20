@@ -6,13 +6,13 @@ services:
     container_name: villaparis-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: villaparis
-      POSTGRES_PASSWORD: villaparis_secret_2026
-      POSTGRES_DB: villaparis
+      POSTGRES_USER: ${POSTGRES_USER:-villaparis}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-villaparis_secret}
+      POSTGRES_DB: ${POSTGRES_DB:-villaparis}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U villaparis -d villaparis"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-villaparis} -d ${POSTGRES_DB:-villaparis}"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -28,7 +28,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      DATABASE_URL: postgresql://villaparis:villaparis_secret_2026@db:5432/villaparis?schema=public
+      DATABASE_URL: ${DATABASE_URL:-postgresql://villaparis:villaparis_secret@db:5432/villaparis?schema=public}
       NODE_ENV: production
     depends_on:
       db:
