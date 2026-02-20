@@ -96,9 +96,11 @@ download_template() {
     log_info "Verifico template Debian 12..."
     if ! pveam list "$TEMPLATE_STORAGE" 2>/dev/null | grep -q "$name"; then
         log_info "Download template in corso (può richiedere qualche minuto)..."
-        pveam download "$TEMPLATE_STORAGE" "$name" || die "Download template fallito"
+        # stdout di pveam redirect su stderr: questa funzione viene catturata con $()
+        pveam download "$TEMPLATE_STORAGE" "$name" >&2 || die "Download template fallito"
     fi
     log_ok "Template pronto: $name"
+    # UNICO stdout: il path del template (usato da pct create)
     echo "${TEMPLATE_STORAGE}:vztmpl/${name}"
 }
 
