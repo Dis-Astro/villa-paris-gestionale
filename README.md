@@ -155,6 +155,45 @@ docker compose down       # Stop
 docker compose logs -f    # Logs
 ```
 
+## CI/CD - Deploy automatico su Proxmox
+
+Il file `.github/workflows/deploy.yml` aggiorna automaticamente il container Proxmox ad ogni push su `main`.
+
+### Setup richiesto (una tantum)
+
+Vai su **GitHub → Settings → Secrets and variables → Actions** e aggiungi:
+
+| Secret | Descrizione | Esempio |
+|--------|-------------|---------|
+| `PROXMOX_HOST` | IP o hostname del nodo Proxmox | `192.168.1.10` |
+| `PROXMOX_PORT` | Porta SSH (default 22) | `22` |
+| `PROXMOX_USER` | Utente SSH (root) | `root` |
+| `PROXMOX_SSH_KEY` | Chiave SSH privata (contenuto del file) | `-----BEGIN OPENSSH...` |
+| `PROXMOX_CT_ID` | ID del container LXC | `100` |
+
+### Come generare la chiave SSH
+
+```bash
+# Sul tuo PC
+ssh-keygen -t ed25519 -f ~/.ssh/proxmox_deploy -N ""
+
+# Copia la chiave pubblica sul nodo Proxmox
+ssh-copy-id -i ~/.ssh/proxmox_deploy.pub root@<PROXMOX_HOST>
+
+# Aggiungi il contenuto di ~/.ssh/proxmox_deploy come secret PROXMOX_SSH_KEY
+cat ~/.ssh/proxmox_deploy
+```
+
+### Cosa fa il workflow
+
+1. Ad ogni push su `main`, SSH nel nodo Proxmox
+2. `pct exec <CT_ID>` → entra nel container
+3. `git pull origin main` → aggiorna il codice
+4. `docker compose up -d --build --remove-orphans` → rebuild e restart
+5. Healthcheck HTTP su `:3000`
+
+È disponibile anche il **trigger manuale** (Actions → "Deploy to Proxmox LXC" → Run workflow) con opzione `force_rebuild=true` per build senza cache.
+
 ## License
 
 MIT
