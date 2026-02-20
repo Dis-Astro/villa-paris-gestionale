@@ -47,3 +47,11 @@ public/uploads/*
 
 # Docker
 docker-data/
+-e 
+# Environment files
+*.env
+*.env.*
+-e 
+# Environment files
+*.env
+*.env.*
