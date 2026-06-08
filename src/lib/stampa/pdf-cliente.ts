@@ -83,6 +83,22 @@ function buildCopertina(metadata: PDFMetadata): Content[] {
       style: 'sottotitolo',
       fontSize: 12
     },
+    {
+      text: metadata.prezzoPerPersona > 0
+        ? `Prezzo concordato: € ${metadata.prezzoPerPersona.toFixed(2)} / persona`
+        : 'Prezzo per persona: da definire',
+      style: 'sottotitolo',
+      fontSize: 12,
+      margin: [0, 6, 0, 0]
+    },
+    {
+      text: metadata.prezzoPerPersona > 0
+        ? `Totale stimato: € ${metadata.totaleStimato.toFixed(2)}`
+        : '',
+      style: 'sottotitolo',
+      fontSize: 11,
+      margin: [0, 2, 0, 0]
+    },
     { text: '', margin: [0, 60, 0, 0] },
     {
       text: `Cliente: ${metadata.cliente}`,
@@ -121,6 +137,8 @@ function buildMenuPage(menu: MenuEvento | undefined, metadata: PDFMetadata): Con
     const portateOrdinate = [...menu.portate].sort((a, b) => a.ordine - b.ordine)
     
     for (const portata of portateOrdinate) {
+      const piattiSelezionati = (portata.piatti || []).filter((p: any) => p.selezionato)
+
       content.push({
         text: portata.nome.toUpperCase(),
         style: 'titoloPortata',
@@ -128,7 +146,13 @@ function buildMenuPage(menu: MenuEvento | undefined, metadata: PDFMetadata): Con
         margin: [0, 20, 0, 5]
       })
       
-      if (portata.descrizione) {
+      if (piattiSelezionati.length > 0) {
+        content.push({
+          ul: piattiSelezionati.map((p: any) => p.descrizione ? `${p.nome} — ${p.descrizione}` : p.nome),
+          style: 'testoNormale',
+          margin: [80, 0, 80, 15]
+        })
+      } else if (portata.descrizione) {
         content.push({
           text: portata.descrizione,
           style: 'testoNormale',
@@ -171,6 +195,15 @@ function buildMenuPage(menu: MenuEvento | undefined, metadata: PDFMetadata): Con
       italics: true
     })
   }
+
+  content.push({ text: '', margin: [0, 10, 0, 0] })
+  content.push({
+    text: metadata.prezzoPerPersona > 0
+      ? `Prezzo concordato: € ${metadata.prezzoPerPersona.toFixed(2)} / persona (Totale stimato € ${metadata.totaleStimato.toFixed(2)})`
+      : 'Prezzo per persona: da definire',
+    style: 'testoSmall',
+    alignment: 'center'
+  })
 
   content.push({ text: '', pageBreak: 'after' })
   return content
@@ -278,6 +311,9 @@ function buildFirmePage(metadata: PDFMetadata): Content[] {
         'Il menu come descritto nelle pagine precedenti',
         'La disposizione sala indicata',
         `Il numero di ospiti previsti: ${metadata.personePreviste}`,
+        metadata.prezzoPerPersona > 0
+          ? `Prezzo concordato: € ${metadata.prezzoPerPersona.toFixed(2)} / persona (Totale stimato € ${metadata.totaleStimato.toFixed(2)})`
+          : 'Prezzo per persona: da definire',
         'Le eventuali varianti alimentari comunicate'
       ],
       style: 'testoNormale',

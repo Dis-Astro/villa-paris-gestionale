@@ -149,6 +149,10 @@ export interface Piatto {
   id: string                    // ID univoco
   nome: string                  // Nome del piatto
   descrizione?: string          // Descrizione opzionale
+  categoria?: string            // Categoria di appartenenza (antipasto, primo...)
+  selezionato?: boolean         // Se selezionato per questo evento
+  defaultSelected?: boolean     // Se pre-selezionato nel menu base
+  isExtra?: boolean             // Se piatto aggiunto manualmente in evento
   variantiDisponibili?: VariantId[] // Array di VariantId disponibili per questo piatto
 }
 
@@ -207,7 +211,7 @@ export interface TavoloEvento {
   posti: number                           // Numero posti
   posizione: PosizionePercentuale
   rotazione?: number
-  forma?: 'rotondo' | 'rettangolare' | 'quadrato' | string
+  forma?: 'rotondo' | 'rettangolare' | 'quadrato' | 'imperiale' | string
   dimensionePerc: number
   
   // Varianti per questo tavolo: Record<VariantId, quantità>
@@ -238,6 +242,7 @@ export interface DisposizioneSala {
   tavoli: TavoloEvento[]
   stazioni?: StazioneEvento[]             // Opzionale
   immagine?: string                       // Base64 o URL della planimetria
+  rotazioneImmagine?: number
 }
 
 // ============================================

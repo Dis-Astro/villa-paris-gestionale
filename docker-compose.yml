@@ -27,6 +27,12 @@ services:
       - "3000:3000"
     environment:
       DATABASE_URL: ${DATABASE_URL:-postgresql://villaparis:villaparis_secret@db:5432/villaparis?schema=public}
+      JWT_SECRET: ${JWT_SECRET:-villaparis_change_this_secret_in_env}
+      JWT_EXPIRES_HOURS: ${JWT_EXPIRES_HOURS:-8}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-http://localhost:3000}
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       NODE_ENV: production
     depends_on:
       db:

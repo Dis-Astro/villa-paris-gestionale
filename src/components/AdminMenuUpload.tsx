@@ -1,41 +1,40 @@
 'use client'
 
 import { useState } from 'react'
-import * as XLSX from 'xlsx'
 
 export default function AdminMenuUpload() {
   const [output, setOutput] = useState('')
 
-  const handleFile = async (e: any) => {
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
 
-    const data = await file.arrayBuffer()
-    const workbook = XLSX.read(data)
-    const struttura: Record<string, { nome: string }[]> = {}
+    const formData = new FormData()
+    formData.append('file', file)
 
-    for (const sheetName of workbook.SheetNames) {
-      const sheet = workbook.Sheets[sheetName]
-      const rows = XLSX.utils.sheet_to_json(sheet)
-      struttura[sheetName] = rows.map((row: any) => ({ nome: row.nome || row.Nome || row.piatto }))
+    const uploadRes = await fetch('/api/piatti/upload', {
+      method: 'POST',
+      body: formData
+    })
+
+    if (!uploadRes.ok) {
+      alert('Errore nella lettura del file')
+      return
     }
 
+    const struttura = await uploadRes.json()
     setOutput(JSON.stringify(struttura, null, 2))
 
-    const nome = prompt('Nome per il menù base:')
+    const nome = prompt('Nome per il menu base:')
     if (!nome) return
 
     const res = await fetch('/api/menu-base', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nome, contenuto: struttura })
+      body: JSON.stringify({ nome, struttura })
     })
 
-    if (res.ok) {
-      alert('✅ Menù salvato')
-    } else {
-      alert('❌ Errore nel salvataggio')
-    }
+    alert(res.ok ? 'Menu salvato' : 'Errore nel salvataggio')
   }
 
   return (

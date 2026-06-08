@@ -7,11 +7,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { 
-  Plus, 
-  Trash2, 
-  GripVertical, 
-  ChevronUp, 
-  ChevronDown,
+  Plus,
+  Trash2,
   Save,
   ArrowLeft,
   Check
@@ -23,10 +20,29 @@ import {
   VARIANTI_DEFAULT,
   VARIANT_IDS
 } from '@/lib/types'
+import {
+  buildMenuEventoFromStruttura,
+  normalizeStrutturaMenuBase,
+  normalizeMenuEvento,
+  parseListaPietanzeDaDescrizione,
+  REGOLE_CATEGORIE
+} from '@/lib/menu-utils'
 
-// ============================================
-// MENU EVENTO PAGE - STEP 2
-// ============================================
+const CATEGORIA_DA_NOME: Record<string, string> = {
+  antipasti: 'antipasto',
+  antipasto: 'antipasto',
+  primi: 'primo',
+  primo: 'primo',
+  secondi: 'secondo',
+  secondo: 'secondo',
+  contorni: 'contorno',
+  contorno: 'contorno',
+  dolci: 'dolce',
+  dolce: 'dolce',
+  bevande: 'bevanda',
+  bevanda: 'bevanda',
+  altro: 'altro'
+}
 
 export default function MenuEventoPage() {
   const { id } = useParams()
@@ -38,6 +54,8 @@ export default function MenuEventoPage() {
     variantiAttive: [],
     note: ''
   })
+  const [struttura, setStruttura] = useState<any>({})
+  const [extraInputs, setExtraInputs] = useState<Record<string, string>>({})
   const [status, setStatus] = useState('')
   const [isSaving, setIsSaving] = useState(false)
 
@@ -48,12 +66,51 @@ export default function MenuEventoPage() {
         const res = await fetch(`/api/eventi?id=${id}`)
         if (!res.ok) throw new Error('Errore caricamento')
         const data = await res.json()
-        setEvento(data)
-        
-        // Carica menu esistente o inizializza vuoto
-        if (data.menu && data.menu.portate) {
-          setMenu(data.menu as MenuEvento)
+
+        const menuRaw = typeof data.menu === 'string'
+          ? (() => {
+              try { return JSON.parse(data.menu || '{}') } catch { return {} }
+            })()
+          : (data.menu || {})
+
+        const strutturaRaw = normalizeStrutturaMenuBase(data.struttura)
+        const menuNormalizzato = normalizeMenuEvento(menuRaw)
+        const menuDaStruttura = buildMenuEventoFromStruttura(strutturaRaw)
+
+        let menuFinale = menuDaStruttura
+
+        if (Array.isArray(menuNormalizzato.portate) && menuNormalizzato.portate.length > 0) {
+          const haPiattiInMenu = menuNormalizzato.portate.some((p) => Array.isArray(p.piatti) && p.piatti.length > 0)
+          if (haPiattiInMenu) {
+            menuFinale = menuNormalizzato
+          } else {
+            // retro-compatibilità: menu vecchio con solo descrizione testuale
+            const mergedPortate = menuDaStruttura.portate.map((portataBase) => {
+              const portataOld = menuNormalizzato.portate.find((p) => p.nome.toLowerCase() === portataBase.nome.toLowerCase())
+              const selectedNames = parseListaPietanzeDaDescrizione(portataOld?.descrizione)
+              if (!selectedNames.length) return portataBase
+
+              return {
+                ...portataBase,
+                piatti: (portataBase.piatti || []).map((piatto) => ({
+                  ...piatto,
+                  selezionato: selectedNames.includes(piatto.nome)
+                }))
+              }
+            })
+
+            menuFinale = {
+              portate: mergedPortate,
+              variantiAttive: menuNormalizzato.variantiAttive,
+              note: menuNormalizzato.note
+            }
+          }
         }
+
+        setEvento(data)
+        setStruttura(strutturaRaw)
+        
+        setMenu(menuFinale)
       } catch (error) {
         console.error('Errore:', error)
         setStatus('❌ Errore nel caricamento evento')
@@ -61,6 +118,116 @@ export default function MenuEventoPage() {
     }
     fetchEvento()
   }, [id])
+
+  const getCategoriaPortata = useCallback((portata: Portata): string => {
+    const categoriaDaPiatto = (portata.piatti || []).find((p) => p.categoria)?.categoria
+    if (categoriaDaPiatto) return categoriaDaPiatto
+    const nome = (portata.nome || '').toLowerCase()
+    const key = Object.keys(CATEGORIA_DA_NOME).find((k) => nome.includes(k))
+    return key ? CATEGORIA_DA_NOME[key] : 'altro'
+  }, [])
+
+  const getLimitePortata = useCallback((portata: Portata): number | null => {
+    const categoria = getCategoriaPortata(portata)
+    const regolaKey = REGOLE_CATEGORIE[categoria]
+    if (!regolaKey) return null
+    const valore = Number(struttura?.regole?.[regolaKey])
+    return Number.isFinite(valore) && valore > 0 ? valore : null
+  }, [struttura, getCategoriaPortata])
+
+  const getSelezionatiCount = (portata: Portata) =>
+    (portata.piatti || []).filter((p) => p.selezionato).length
+
+  const togglePiatto = (portataId: string, piattoId: string) => {
+    setMenu((prev) => {
+      const portata = prev.portate.find((p) => p.id === portataId)
+      if (!portata) return prev
+      const limite = getLimitePortata(portata)
+      const selectedCount = getSelezionatiCount(portata)
+      const target = (portata.piatti || []).find((p) => p.id === piattoId)
+      const toSelect = !target?.selezionato
+
+      if (toSelect && limite && selectedCount >= limite) {
+        setStatus(`⚠️ In ${portata.nome} puoi selezionare massimo ${limite} piatti`)
+        setTimeout(() => setStatus(''), 2500)
+        return prev
+      }
+
+      return {
+        ...prev,
+        portate: prev.portate.map((p) => {
+          if (p.id !== portataId) return p
+          return {
+            ...p,
+            piatti: (p.piatti || []).map((piatto) =>
+              piatto.id === piattoId ? { ...piatto, selezionato: !piatto.selezionato } : piatto
+            )
+          }
+        })
+      }
+    })
+  }
+
+  const aggiungiExtraPiatto = (portata: Portata) => {
+    const value = (extraInputs[portata.id] || '').trim()
+    if (!value) return
+    const categoria = getCategoriaPortata(portata)
+
+    setMenu((prev) => ({
+      ...prev,
+      portate: prev.portate.map((p) => {
+        if (p.id !== portata.id) return p
+        return {
+          ...p,
+          piatti: [
+            ...(p.piatti || []),
+            {
+              id: `extra-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+              nome: value,
+              descrizione: '',
+              categoria,
+              isExtra: true,
+              selezionato: true,
+              defaultSelected: false
+            }
+          ]
+        }
+      })
+    }))
+
+    setExtraInputs((prev) => ({ ...prev, [portata.id]: '' }))
+  }
+
+  const rimuoviExtraPiatto = (portataId: string, piattoId: string) => {
+    setMenu((prev) => ({
+      ...prev,
+      portate: prev.portate.map((p) => {
+        if (p.id !== portataId) return p
+        return {
+          ...p,
+          piatti: (p.piatti || []).filter((piatto) => !(piatto.id === piattoId && piatto.isExtra))
+        }
+      })
+    }))
+  }
+
+  const prepareMenuForSave = (menuValue: MenuEvento): MenuEvento => {
+    return {
+      ...menuValue,
+      portate: menuValue.portate.map((portata) => {
+        const selectedPiatti = (portata.piatti || []).filter((p) => p.selezionato)
+        const descrizione = selectedPiatti
+          .map((p) => `• ${p.nome}${p.descrizione ? ` — ${p.descrizione}` : ''}`)
+          .join('\n')
+
+        return {
+          ...portata,
+          descrizione,
+          piatti: portata.piatti || []
+        }
+      })
+    }
+  }
 
   // Salva menu
   const handleSave = async () => {
@@ -74,7 +241,7 @@ export default function MenuEventoPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           ...evento,
-          menu
+          menu: prepareMenuForSave(menu)
         })
       })
       
@@ -91,67 +258,6 @@ export default function MenuEventoPage() {
     }
   }
 
-  // ============================================
-  // GESTIONE PORTATE
-  // ============================================
-  
-  const aggiungiPortata = () => {
-    const nuovaPortata: Portata = {
-      id: `portata_${Date.now()}`,
-      nome: '',
-      ordine: menu.portate.length + 1,
-      descrizione: ''
-    }
-    setMenu(prev => ({
-      ...prev,
-      portate: [...prev.portate, nuovaPortata]
-    }))
-  }
-
-  const aggiornaPortata = (portataId: string, campo: keyof Portata, valore: any) => {
-    setMenu(prev => ({
-      ...prev,
-      portate: prev.portate.map(p => 
-        p.id === portataId ? { ...p, [campo]: valore } : p
-      )
-    }))
-  }
-
-  const eliminaPortata = (portataId: string) => {
-    setMenu(prev => {
-      const nuovePortate = prev.portate
-        .filter(p => p.id !== portataId)
-        .map((p, idx) => ({ ...p, ordine: idx + 1 }))
-      return { ...prev, portate: nuovePortate }
-    })
-  }
-
-  const spostaPortata = (portataId: string, direzione: 'su' | 'giu') => {
-    setMenu(prev => {
-      const portate = [...prev.portate]
-      const idx = portate.findIndex(p => p.id === portataId)
-      if (idx === -1) return prev
-      
-      const newIdx = direzione === 'su' ? idx - 1 : idx + 1
-      if (newIdx < 0 || newIdx >= portate.length) return prev
-      
-      // Scambia
-      const temp = portate[idx]
-      portate[idx] = portate[newIdx]
-      portate[newIdx] = temp
-      
-      // Ricalcola ordine e ritorna MenuEvento completo
-      return {
-        ...prev,
-        portate: portate.map((p, i) => ({ ...p, ordine: i + 1 }))
-      }
-    })
-  }
-
-  // ============================================
-  // GESTIONE VARIANTI
-  // ============================================
-
   const toggleVariante = (variantId: VariantId) => {
     setMenu(prev => {
       const attive = prev.variantiAttive.includes(variantId)
@@ -160,10 +266,6 @@ export default function MenuEventoPage() {
       return { ...prev, variantiAttive: attive }
     })
   }
-
-  // ============================================
-  // RENDER
-  // ============================================
 
   if (!evento) {
     return (
@@ -265,39 +367,37 @@ export default function MenuEventoPage() {
 
         {/* Sezione Portate */}
         <Card data-testid="portate-section">
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader>
             <div>
               <CardTitle className="text-lg">Portate</CardTitle>
               <p className="text-sm text-gray-500">
-                Aggiungi e ordina le portate del menu
+                Seleziona i piatti del menu base. Le portate non vengono eliminate, scegli solo le pietanze.
               </p>
             </div>
-            <Button 
-              onClick={aggiungiPortata}
-              data-testid="add-portata-btn"
-            >
-              <Plus className="w-4 h-4 mr-2" />
-              Aggiungi Portata
-            </Button>
           </CardHeader>
           <CardContent className="space-y-4">
             {menu.portate.length === 0 ? (
-              <div className="text-center py-8 text-gray-500" data-testid="empty-portate">
-                <p>Nessuna portata inserita</p>
-                <p className="text-sm">Clicca "Aggiungi Portata" per iniziare</p>
+              <div className="text-center py-8 text-gray-500 space-y-2" data-testid="empty-portate">
+                <p>Nessuna portata disponibile nel menu base</p>
+                <Button variant="outline" onClick={() => router.push(`/modifica-evento/${id}`)} data-testid="go-load-menu-base-btn">
+                  Torna all'evento e carica un menu base
+                </Button>
               </div>
             ) : (
               menu.portate
                 .sort((a, b) => a.ordine - b.ordine)
                 .map((portata, idx) => (
-                  <PortataCard
+                  <PortataSelezioneCard
                     key={portata.id}
                     portata={portata}
-                    isFirst={idx === 0}
-                    isLast={idx === menu.portate.length - 1}
-                    onUpdate={(campo, valore) => aggiornaPortata(portata.id, campo, valore)}
-                    onDelete={() => eliminaPortata(portata.id)}
-                    onMove={(dir) => spostaPortata(portata.id, dir)}
+                    index={idx}
+                    limite={getLimitePortata(portata)}
+                    selectedCount={getSelezionatiCount(portata)}
+                    extraValue={extraInputs[portata.id] || ''}
+                    onToggle={(piattoId) => togglePiatto(portata.id, piattoId)}
+                    onExtraChange={(v) => setExtraInputs((prev) => ({ ...prev, [portata.id]: v }))}
+                    onExtraAdd={() => aggiungiExtraPiatto(portata)}
+                    onExtraRemove={(piattoId) => rimuoviExtraPiatto(portata.id, piattoId)}
                   />
                 ))
             )}
@@ -324,85 +424,92 @@ export default function MenuEventoPage() {
   )
 }
 
-// ============================================
-// COMPONENTE PORTATA
-// ============================================
-
-interface PortataCardProps {
+interface PortataSelezioneCardProps {
   portata: Portata
-  isFirst: boolean
-  isLast: boolean
-  onUpdate: (campo: keyof Portata, valore: any) => void
-  onDelete: () => void
-  onMove: (direzione: 'su' | 'giu') => void
+  index: number
+  limite: number | null
+  selectedCount: number
+  extraValue: string
+  onToggle: (piattoId: string) => void
+  onExtraChange: (value: string) => void
+  onExtraAdd: () => void
+  onExtraRemove: (piattoId: string) => void
 }
 
-function PortataCard({ 
-  portata, 
-  isFirst, 
-  isLast, 
-  onUpdate, 
-  onDelete, 
-  onMove 
-}: PortataCardProps) {
+function PortataSelezioneCard({
+  portata,
+  index,
+  limite,
+  selectedCount,
+  extraValue,
+  onToggle,
+  onExtraChange,
+  onExtraAdd,
+  onExtraRemove
+}: PortataSelezioneCardProps) {
+  const piatti = (portata.piatti || [])
+
   return (
     <div 
-      className="flex gap-3 p-4 bg-white border rounded-lg shadow-sm"
+      className="p-4 bg-white border rounded-lg shadow-sm"
       data-testid={`portata-card-${portata.id}`}
     >
-      {/* Handle riordino */}
-      <div className="flex flex-col items-center justify-center gap-1 text-gray-400">
-        <GripVertical className="w-5 h-5" />
-        <span className="text-xs font-bold text-gray-500">{portata.ordine}</span>
-        <div className="flex flex-col gap-1 mt-1">
-          <button
-            onClick={() => onMove('su')}
-            disabled={isFirst}
-            className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"
-            data-testid={`move-up-${portata.id}`}
-          >
-            <ChevronUp className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => onMove('giu')}
-            disabled={isLast}
-            className="p-1 hover:bg-gray-100 rounded disabled:opacity-30"
-            data-testid={`move-down-${portata.id}`}
-          >
-            <ChevronDown className="w-4 h-4" />
-          </button>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-xs text-gray-400">Portata {index + 1}</p>
+          <h3 className="font-semibold text-gray-900 text-lg" data-testid={`portata-nome-${portata.id}`}>
+            {portata.nome}
+          </h3>
+          <p className="text-xs text-gray-500" data-testid={`portata-counter-${portata.id}`}>
+            Selezionati {selectedCount}
+            {limite ? ` / ${limite}` : ''}
+          </p>
         </div>
       </div>
 
-      {/* Contenuto portata */}
-      <div className="flex-1 space-y-3">
-        <Input
-          value={portata.nome}
-          onChange={(e) => onUpdate('nome', e.target.value)}
-          placeholder="Nome portata (es. Antipasto, Primo, Secondo...)"
-          className="text-lg font-medium"
-          data-testid={`portata-nome-${portata.id}`}
-        />
-        <Textarea
-          value={portata.descrizione || ''}
-          onChange={(e) => onUpdate('descrizione', e.target.value)}
-          placeholder="Descrizione della portata (piatti inclusi, ingredienti principali...)"
-          rows={2}
-          data-testid={`portata-descrizione-${portata.id}`}
-        />
-      </div>
+      <div className="space-y-2">
+        {piatti.map((piatto) => (
+          <div key={piatto.id} className="flex items-center gap-3 border rounded-lg px-3 py-2" data-testid={`menu-piatto-row-${piatto.id}`}>
+            <input
+              type="checkbox"
+              checked={Boolean(piatto.selezionato)}
+              onChange={() => onToggle(piatto.id)}
+              data-testid={`menu-piatto-check-${piatto.id}`}
+            />
+            <div className="flex-1">
+              <p className="text-sm font-medium text-gray-800">{piatto.nome}</p>
+              {piatto.descrizione && <p className="text-xs text-gray-500">{piatto.descrizione}</p>}
+            </div>
+            {piatto.defaultSelected && (
+              <span className="text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded" data-testid={`menu-piatto-default-${piatto.id}`}>
+                default
+              </span>
+            )}
+            {piatto.isExtra && (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => onExtraRemove(piatto.id)}
+                className="text-red-500 hover:text-red-700"
+                data-testid={`menu-piatto-remove-extra-${piatto.id}`}
+              >
+                <Trash2 className="w-4 h-4" />
+              </Button>
+            )}
+          </div>
+        ))}
 
-      {/* Azioni */}
-      <div>
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onDelete}
-          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-          data-testid={`delete-portata-${portata.id}`}
-        >
-          <Trash2 className="w-5 h-5" />
-        </Button>
+        <div className="flex gap-2 pt-1" data-testid={`menu-extra-wrap-${portata.id}`}>
+          <Input
+            value={extraValue}
+            onChange={(e) => onExtraChange(e.target.value)}
+            placeholder="Aggiungi piatto extra (accordo cliente)"
+            data-testid={`menu-extra-input-${portata.id}`}
+          />
+          <Button variant="outline" onClick={onExtraAdd} data-testid={`menu-extra-add-${portata.id}`}>
+            <Plus className="w-4 h-4 mr-1" /> Extra
+          </Button>
+        </div>
       </div>
     </div>
   )

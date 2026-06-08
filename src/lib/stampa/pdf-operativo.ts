@@ -91,6 +91,26 @@ function buildIntestazioneOperativa(metadata: PDFMetadata): Content[] {
       margin: [0, 10, 0, 0]
     },
     {
+      columns: [
+        {
+          width: '50%',
+          stack: [
+            { text: 'Prezzo/persona:', style: 'testoSmall' },
+            { text: metadata.prezzoPerPersona > 0 ? `€ ${metadata.prezzoPerPersona.toFixed(2)}` : 'Da definire', style: 'testoNormale', bold: true }
+          ]
+        },
+        {
+          width: '50%',
+          stack: [
+            { text: 'Totale stimato:', style: 'testoSmall' },
+            { text: metadata.prezzoPerPersona > 0 ? `€ ${metadata.totaleStimato.toFixed(2)}` : 'Da definire', style: 'testoNormale', bold: true }
+          ],
+          alignment: 'right'
+        }
+      ],
+      margin: [0, 8, 0, 0]
+    },
+    {
       canvas: [
         { type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1, lineColor: PDF_COLORS.primary }
       ],

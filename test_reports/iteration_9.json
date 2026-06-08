@@ -1,0 +1,90 @@
+{
+  "summary": "Iteration 9 - Audit complete e fix allineamento dati. All 9 requested features verified working.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Report Azienda",
+        "issues": ["Console warnings about chart dimensions on initial render (non-blocking)"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_iteration9_audit.py",
+    "/app/test_reports/pytest/pytest_results_iter9.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_iteration9_audit.py"
+  ],
+  "success_rate": {
+    "backend": "100% (13/13 tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": "None required",
+  "seed_data_creation": "Event ID 3 already prepared with menu base and prezzo=99",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "All audit features verified. Event ID 3 used for testing with prezzo=99. Report ricavi shows €0 because no confirmed events have prezzo set (expected behavior).",
+  "features_tested": {
+    "1_menu_base_creation_save": {
+      "status": "PASS",
+      "details": "POST/PUT /api/menu-base works correctly. Created test menu with defaultSelected piatti, verified persistence."
+    },
+    "2_menu_base_defaultSelected": {
+      "status": "PASS",
+      "details": "Checkbox 'Selezionato di default nel menu evento' visible in edit form. DefaultSelected piatti show green 'default' badge in list view."
+    },
+    "3_menu_evento_no_delete_portata": {
+      "status": "PASS",
+      "details": "No delete-portata buttons in Menu Evento page. UI explicitly states 'Le portate non vengono eliminate, scegli solo le pietanze'."
+    },
+    "4_menu_evento_selection_with_limits": {
+      "status": "PASS",
+      "details": "Piatto checkboxes with selection counter 'Selezionati X / Y'. Extra piatto add functionality works. Save persists selections."
+    },
+    "5_stampe_no_undefined_cliente": {
+      "status": "PASS",
+      "details": "getClienteNome() returns 'Chiara Di Felice' for Event 3. No undefined/undefined in Stampe page."
+    },
+    "6_stampe_prezzo_propagation": {
+      "status": "PASS",
+      "details": "getPrezzoPerPersona() correctly reads evento.prezzo (99) or falls back to struttura.prezzo. Totale stimato calculated correctly."
+    },
+    "7_clienti_data_primo_contatto": {
+      "status": "PASS",
+      "details": "Client cards show '1 contatto: DD/MM/YYYY'. Edit modal has 'Data Primo Contatto' field pre-populated."
+    },
+    "8_dashboard_ricavi_calculation": {
+      "status": "PASS",
+      "details": "Dashboard/report uses evento.prezzo or struttura.prezzo, NOT hardcoded 80. Ricavi=€0 is correct because no confirmed events have prezzo set."
+    },
+    "9_eventi_menu_save_regression": {
+      "status": "PASS",
+      "details": "PUT /api/eventi saves menu correctly. Verified with note update and reload."
+    }
+  },
+  "api_verification": {
+    "GET_api_menu_base": "200 OK - returns list of menus with struttura parsed",
+    "POST_api_menu_base": "200 OK - creates menu with defaultSelected piatti",
+    "GET_api_eventi_id3": "200 OK - returns event with menu, struttura, clienti, prezzo=99",
+    "PUT_api_eventi_id3": "200 OK - saves menu changes correctly",
+    "GET_api_clienti": "200 OK - returns clients with dataPrimoContatto",
+    "GET_api_report_stats": "200 OK - returns monthly stats with correct ricavi calculation"
+  },
+  "playwright_tests": {
+    "menu_base_list": "Shows menus with price and piatti count, default badges visible",
+    "menu_base_edit": "Form loads with defaultSelected checkboxes, prezzo field",
+    "menu_evento": "No delete-portata buttons, piatto checkboxes with limits, extra add works",
+    "clienti_page": "Cards show '1 contatto' date, edit modal pre-populates dataPrimoContatto",
+    "stampe_page": "No undefined/undefined in event list",
+    "report_azienda": "Shows ricavi €0 (correct - no confirmed events with prezzo)"
+  },
+  "note_on_ricavi": "Report shows €0 ricavi because all 40 confirmed events have prezzo=null. Event 3 has prezzo=99 but dataConfermata=null, so it's not counted in stats. This is correct behavior - the code correctly uses evento.prezzo or struttura.prezzo fallback, but the data simply doesn't have prices on confirmed events."
+}

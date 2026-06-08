@@ -1,0 +1,94 @@
+{
+  "summary": "Hotfix post FASE 3 Villa Paris testing complete. All features verified: Report Operativo and Report Eventi coexist as separate modules, Primo contatto appears correctly in calendar as dedicated entry distinct from appointments/events.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_16.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (4/4 API endpoints tested)",
+    "frontend": "100% (all features working)"
+  },
+  "test_credentials": {
+    "admin": "admin@villaparis.local / Admin123!"
+  },
+  "seed_data_creation": "Created and deleted TEST_PrimoContatto_Oggi client for calendar testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Hotfix verified: Report Operativo (/report/azienda) and Report Eventi (/report/eventi) coexist as separate modules in sidebar. Primo contatto entries appear in calendar with dedicated styling (brown/amber color) and '1° contatto' label, distinct from appuntamenti (purple) and eventi confermati (green). Filter 'Primi contatti' works correctly.",
+  "features_tested": {
+    "report_operativo_api": {
+      "status": "PASS",
+      "details": "GET /api/report/stats returns 200 with OperationalReportResponse"
+    },
+    "report_operativo_excel_api": {
+      "status": "PASS",
+      "details": "GET /api/report/azienda.xlsx returns valid Excel file (11KB)"
+    },
+    "report_eventi_api": {
+      "status": "PASS",
+      "details": "GET /api/report/eventi/stats returns 200 with year stats, monthly data, byTipo, totals"
+    },
+    "report_eventi_excel_api": {
+      "status": "PASS",
+      "details": "GET /api/report/eventi.xlsx returns valid Excel file (22KB)"
+    },
+    "sidebar_report_operativo_link": {
+      "status": "PASS",
+      "details": "Sidebar shows 'Report Operativo' link to /report/azienda"
+    },
+    "sidebar_report_eventi_link": {
+      "status": "PASS",
+      "details": "Sidebar shows 'Report Eventi' link to /report/eventi"
+    },
+    "report_operativo_page": {
+      "status": "PASS",
+      "details": "Page loads with FASE 3 badge, filters, KPI cards, charts, tables"
+    },
+    "report_eventi_page": {
+      "status": "PASS",
+      "details": "Page loads with title, description, filters, 4 KPI cards (Eventi, Ospiti, Ricavi, Ticket), 4 charts, preview table"
+    },
+    "calendario_primo_contatto_display": {
+      "status": "PASS",
+      "details": "Primo contatto entries appear in calendar with dedicated brown/amber color and '1° contatto' label"
+    },
+    "calendario_primi_contatti_filter": {
+      "status": "PASS",
+      "details": "Filter 'Primi contatti' button works, shows only primo contatto entries"
+    },
+    "calendario_day_panel_primo_contatto": {
+      "status": "PASS",
+      "details": "Day panel shows primo contatto as dedicated entry with 'Primo contatto' type and '1° contatto' badge"
+    },
+    "no_duplicate_primo_contatto": {
+      "status": "PASS",
+      "details": "Primo contatto entries from clienti API are deduplicated against eventi with same dataPrimoContatto"
+    }
+  },
+  "api_verification": {
+    "POST /api/auth/login": "200 - Returns user info and sets vp_token cookie",
+    "GET /api/report/stats": "200 - Returns OperationalReportResponse with meta, summary, sources, operators, trend, clients, activities",
+    "GET /api/report/azienda.xlsx": "200 - Returns valid Excel file",
+    "GET /api/report/eventi/stats": "200 - Returns year stats with monthly, byTipo, totals",
+    "GET /api/report/eventi.xlsx": "200 - Returns valid Excel file with Report Aziendale and Anagrafica Clienti sheets",
+    "GET /api/clienti": "200 - Returns clients list with dataPrimoContatto for calendar",
+    "POST /api/clienti": "201 - Creates new client with dataPrimoContatto"
+  },
+  "ui_verification": {
+    "sidebar": "Shows both 'Report Operativo' and 'Report Eventi' as separate menu items",
+    "report_operativo_page": "Hero with FASE 3 badge, Export Excel/PDF buttons, filters, policy banner, KPI cards, charts, tables",
+    "report_eventi_page": "Title, description, Scarica Excel button, filters card, 4 KPI cards, 4 charts (Ricavi, Eventi, Ospiti, Tipi per mese), preview table",
+    "calendario_page": "Primo contatto entries shown with dedicated color (brown/amber), '1° contatto' badge in day panel, 'Primi contatti' filter works"
+  }
+}

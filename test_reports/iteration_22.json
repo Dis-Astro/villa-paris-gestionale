@@ -1,0 +1,118 @@
+{
+  "summary": "Iteration 22: Tested Google Calendar integration for Villa Paris. All 18 backend API tests passed. All frontend tests passed. Google Calendar APIs correctly handle 'not connected' state, role-based access (ADMIN only), OAuth URL generation, and callback parameter handling.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_google_calendar_integration.py",
+    "/app/test_reports/pytest/pytest_results_iter22.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_google_calendar_integration.py"
+  ],
+  "success_rate": {
+    "backend": "100% (18/18 passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin": "admin@villaparis.local / Admin123!",
+    "worker": "worker.check@villaparis.local / Worker123!",
+    "report": "report.temp@villaparis.local / Report123!"
+  },
+  "seed_data_creation": "None required - tested existing API behavior",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Google Calendar integration fully tested. APIs correctly return 'Google Calendar non connesso' error when not connected. OAuth URL generation works. Role-based access enforced (ADMIN only). OAuth callback bypasses middleware auth. Frontend shows correct UI state for admin (GCal card visible) and worker (redirected away from impostazioni). Auto-sync calls in eventi/appuntamenti routes are non-blocking and don't crash when GCal not connected.",
+  "features_tested": {
+    "gcal_sync_status_get": {
+      "status": "PASS",
+      "details": "GET /api/google-calendar/sync returns connected=false, pendingChanges=[]"
+    },
+    "gcal_oauth_login": {
+      "status": "PASS",
+      "details": "GET /api/oauth/google-calendar/login returns Google OAuth URL with accounts.google.com"
+    },
+    "gcal_sync_post_not_connected": {
+      "status": "PASS",
+      "details": "POST /api/google-calendar/sync returns 400 with 'Google Calendar non connesso'"
+    },
+    "gcal_check_changes_not_connected": {
+      "status": "PASS",
+      "details": "POST /api/google-calendar/check-changes returns 400 with 'Google Calendar non connesso'"
+    },
+    "gcal_validate_change_invalid_params": {
+      "status": "PASS",
+      "details": "POST /api/google-calendar/validate-change returns 400 for missing/invalid params"
+    },
+    "gcal_validate_change_not_found": {
+      "status": "PASS",
+      "details": "POST /api/google-calendar/validate-change returns 404 for nonexistent change"
+    },
+    "gcal_disconnect": {
+      "status": "PASS",
+      "details": "DELETE /api/google-calendar/sync returns success even when not connected"
+    },
+    "gcal_admin_only_access": {
+      "status": "PASS",
+      "details": "All GCal APIs return 403 for WORKER and REPORT roles"
+    },
+    "oauth_callback_bypass_auth": {
+      "status": "PASS",
+      "details": "GET /api/oauth/google-calendar/callback accessible without auth, redirects to /impostazioni?gcal=error"
+    },
+    "frontend_admin_gcal_card": {
+      "status": "PASS",
+      "details": "Admin sees Google Calendar card with 'Connetti Google Calendar' button"
+    },
+    "frontend_worker_no_gcal": {
+      "status": "PASS",
+      "details": "Worker redirected away from /impostazioni to /calendario"
+    },
+    "frontend_oauth_success_param": {
+      "status": "PASS",
+      "details": "?gcal=success shows 'Google Calendar connesso con successo!' message"
+    },
+    "frontend_oauth_error_param": {
+      "status": "PASS",
+      "details": "?gcal=error&msg=X shows 'Errore connessione: X' message"
+    },
+    "prisma_schema_gcal_models": {
+      "status": "PASS",
+      "details": "Schema includes GoogleCalendarConfig, GoogleCalendarChange models, gcalEventId on Evento/Appuntamento"
+    },
+    "auto_sync_eventi_update": {
+      "status": "PASS",
+      "details": "PUT /api/eventi calls syncEventoToGcal (non-blocking, line 337)"
+    },
+    "auto_sync_eventi_delete": {
+      "status": "PASS",
+      "details": "DELETE /api/eventi calls removeEventoFromGcal (non-blocking, line 380)"
+    },
+    "auto_sync_appuntamenti_create": {
+      "status": "PASS",
+      "details": "POST /api/appuntamenti calls syncAppuntamentoToGcal (non-blocking, line 291)"
+    },
+    "auto_sync_appuntamenti_update": {
+      "status": "PASS",
+      "details": "PUT /api/appuntamenti calls syncAppuntamentoToGcal (non-blocking, line 395)"
+    },
+    "auto_sync_appuntamenti_delete": {
+      "status": "PASS",
+      "details": "DELETE /api/appuntamenti calls removeAppuntamentoFromGcal (non-blocking, line 423)"
+    }
+  },
+  "code_review_notes": {
+    "google_calendar_lib": "Well-structured OAuth2 client with auto-refresh token handling",
+    "google_calendar_sync_lib": "Non-blocking sync helpers with proper error handling (catch and log)",
+    "middleware_bypass": "OAuth callback correctly bypasses auth at line 99-101",
+    "role_based_access": "All GCal routes use requireAuth(req, ['ADMIN']) correctly"
+  }
+}

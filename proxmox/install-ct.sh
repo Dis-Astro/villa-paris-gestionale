@@ -3,7 +3,7 @@
 # VILLA PARIS GESTIONALE - PROXMOX LXC INSTALLER
 # ==============================================================================
 # One-liner (esegui come root sul nodo Proxmox):
-#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/main/proxmox/install-ct.sh)"
+#   bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/OPUS/proxmox/install-ct.sh)"
 #
 # Override parametri via variabili d'ambiente:
 #   CTID=200 CT_RAM=4096 CT_IP=192.168.1.50/24 CT_GATEWAY=192.168.1.1 bash -c "$(curl ...)"
@@ -26,7 +26,7 @@ CT_GATEWAY="${CT_GATEWAY:-}"
 TEMPLATE_STORAGE="${TEMPLATE_STORAGE:-local}"
 
 REPO_URL="${REPO_URL:-https://github.com/Dis-Astro/villa-paris-gestionale.git}"
-REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_BRANCH="${REPO_BRANCH:-OPUS}"
 
 DB_USER="${DB_USER:-villaparis}"
 DB_PASS="${DB_PASS:-$(tr -dc 'a-zA-Z0-9' </dev/urandom 2>/dev/null | head -c 16 || echo "villaparis_changeme")}"

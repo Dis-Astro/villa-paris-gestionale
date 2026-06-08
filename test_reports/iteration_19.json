@@ -1,0 +1,97 @@
+{
+  "summary": "Iteration 19: Tested new 'Elimina account' feature in Gestione Utenti. All core features working correctly - DELETE /api/users deletes clean accounts, blocks self-delete, blocks last Admin deletion, blocks users with linked data. No regressions on user creation, toggle active, reset password, role change.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_delete_user_iter19.py",
+    "/app/test_reports/pytest/pytest_results_iter19.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_delete_user_iter19.py"
+  ],
+  "success_rate": {
+    "backend": "100% (10/10 passed, 1 skipped)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin": "admin@villaparis.local / Admin123!"
+  },
+  "seed_data_creation": "Created and cleaned up test users during API testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Delete user feature fully implemented and tested. All protections working: self-delete blocked (button disabled + API returns 400), last Admin blocked (API returns 400), users with linked data blocked (API returns 409 with clear message). Report Operativo and Report Eventi pages verified intact.",
+  "features_tested": {
+    "delete_button_visible": {
+      "status": "PASS",
+      "details": "9 delete buttons visible on /utenti page, one per user row"
+    },
+    "delete_clean_user": {
+      "status": "PASS",
+      "details": "DELETE /api/users successfully deletes users without linked data, returns 200 with {ok: true}"
+    },
+    "delete_self_blocked": {
+      "status": "PASS",
+      "details": "DELETE /api/users returns 400 with error 'Non puoi eliminare il tuo account mentre sei loggato'. UI button is disabled with tooltip."
+    },
+    "delete_last_admin_blocked": {
+      "status": "PASS",
+      "details": "DELETE /api/users returns 400 with error 'Non puoi eliminare l'ultimo Admin' when trying to delete the last admin"
+    },
+    "delete_user_with_linked_data_blocked": {
+      "status": "PASS",
+      "details": "DELETE /api/users returns 409 with error 'Utente con dati collegati: usa Disattiva invece di Elimina'"
+    },
+    "create_user_no_regression": {
+      "status": "PASS",
+      "details": "POST /api/users creates new user correctly, returns 201"
+    },
+    "toggle_active_no_regression": {
+      "status": "PASS",
+      "details": "PATCH /api/users with isActive toggles user status correctly"
+    },
+    "reset_password_no_regression": {
+      "status": "PASS",
+      "details": "PATCH /api/users with newPassword resets password, user can login with new password"
+    },
+    "change_role_no_regression": {
+      "status": "PASS",
+      "details": "PATCH /api/users with role changes user role correctly"
+    },
+    "report_operativo_intact": {
+      "status": "PASS",
+      "details": "/report/azienda loads with FASE 3 badge, KPI cards, filters, Export Excel/PDF buttons"
+    },
+    "report_eventi_intact": {
+      "status": "PASS",
+      "details": "/report/eventi loads with filters, KPI cards (40 eventi, 5066 ospiti), charts, Scarica Excel/PDF buttons"
+    }
+  },
+  "ui_verification": {
+    "utenti_page": {
+      "title": "Gestione Utenti",
+      "description": "Solo Admin: creazione, attivazione, ruolo, reset password ed eliminazione account con protezioni.",
+      "delete_buttons": "9 delete buttons with red styling (border-red-200 text-red-700)",
+      "self_delete_disabled": "Admin's own delete button is disabled with title='Non puoi eliminare il tuo account loggato'",
+      "status_messages": "Shows '✅ Utente creato' and '✅ Utente eliminato' correctly"
+    }
+  },
+  "api_verification": {
+    "DELETE /api/users": {
+      "clean_user": "200 {ok: true}",
+      "self_delete": "400 {error: 'Non puoi eliminare il tuo account mentre sei loggato'}",
+      "last_admin": "400 {error: 'Non puoi eliminare l'ultimo Admin'}",
+      "linked_data": "409 {error: 'Utente con dati collegati: usa Disattiva invece di Elimina'}",
+      "not_found": "404 {error: 'Utente non trovato'}",
+      "missing_id": "400 {error: 'ID utente mancante'}"
+    }
+  }
+}

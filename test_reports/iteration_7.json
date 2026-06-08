@@ -1,0 +1,97 @@
+{
+  "summary": "Iteration 7 - Tested all new piantina features. All 8 features PASS. Fixed 2 bugs: POST eventi with disposizioneSala, POST piantine validation.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": [
+      {
+        "screen": "Piantina Evento",
+        "issues": ["Tavoli sono molto piccoli per default (dimensionePerc=0.03) - comportamento atteso ma può rendere difficile la visibilità iniziale"]
+      }
+    ]
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_piantina_features_iter7.py",
+    "/app/test_reports/pytest/pytest_results_iter7.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/src/app/api/eventi/route.ts",
+    "/app/src/app/api/piantine/route.ts",
+    "/app/backend/tests/test_piantina_features_iter7.py"
+  ],
+  "success_rate": {
+    "backend": "100% (9/9 piantina tests passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": "None required",
+  "seed_data_creation": "Created test event TEST_Evento_Con_Schema (ID 99) for copia schema testing - cleaned up after tests",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "Event ID 3 used for piantina testing. All new features verified working: Ruota 90°, libreria planimetrie API, copia schema da evento simile, tavoli piccoli default, gestione posti, export PNG/PDF/Stampa, salvataggio persistente.",
+  "features_tested": {
+    "1_ruota_90_button": {
+      "status": "PASS",
+      "details": "Button present with data-testid='piantina-ruota-90-btn', applies visual rotation, rotazioneImmagine persists to DB"
+    },
+    "2_libreria_planimetrie_api": {
+      "status": "PASS",
+      "details": "GET /api/piantine returns list with nome+url, POST /api/piantine validates file presence (returns 400 if missing)"
+    },
+    "3_selezione_planimetria_da_libreria": {
+      "status": "PASS",
+      "details": "Dropdown visible in UI, shows planimetrie from /public/planimetrie/ folder"
+    },
+    "4_copia_schema_evento_simile": {
+      "status": "PASS",
+      "details": "Dropdown + button present, shows eventi with tavoli sorted by similarity, copies schema with success message"
+    },
+    "5_tavoli_default_piccoli": {
+      "status": "PASS",
+      "details": "New tavoli created with dimensionePerc=0.03 (previously was larger), persists correctly"
+    },
+    "6_gestione_posti_tavolo": {
+      "status": "PASS",
+      "details": "Posti input visible when tavolo selected (data-testid='posti-tavolo-*'), changes persist to DB"
+    },
+    "7_export_png_pdf_stampa": {
+      "status": "PASS",
+      "details": "All three export buttons present in header (PNG, PDF, Stampa), clickable without errors"
+    },
+    "8_salvataggio_regressione": {
+      "status": "PASS",
+      "details": "Full disposizione save/load cycle works: tavoli, stazioni, immagine, rotazioneImmagine all persist correctly"
+    }
+  },
+  "bugs_fixed": {
+    "1": {
+      "file": "/app/src/app/api/eventi/route.ts",
+      "issue": "POST /api/eventi with disposizioneSala object failed (Prisma expected String)",
+      "fix": "Changed line 64 from 'body.disposizioneSala || null' to 'toJson(body.disposizioneSala)'"
+    },
+    "2": {
+      "file": "/app/src/app/api/piantine/route.ts",
+      "issue": "POST /api/piantine returned 500 instead of 400 when no file provided",
+      "fix": "Wrapped req.formData() in try-catch to handle empty request body gracefully"
+    }
+  },
+  "api_verification": {
+    "GET_api_piantine": "200 OK - returns list of planimetrie",
+    "POST_api_piantine_no_file": "400 - returns {error: 'File mancante'}",
+    "PUT_api_eventi_disposizioneSala": "200 OK - saves tavoli, stazioni, rotazioneImmagine",
+    "POST_api_eventi_disposizioneSala": "200 OK - creates event with full disposizione (FIXED)"
+  },
+  "playwright_tests": {
+    "piantina_page": "Loaded with all UI elements visible",
+    "ruota_90_button": "Clicked successfully, rotation applied",
+    "aggiungi_tavolo": "New tavolo added with small size (0.03)",
+    "posti_input": "Changed to 15, persisted after save",
+    "copia_schema": "Selected event, copied schema with 3 tavoli",
+    "save": "Success message displayed"
+  }
+}

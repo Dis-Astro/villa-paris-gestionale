@@ -1,6 +1,7 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import crypto from 'crypto'
 import prisma from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,7 +10,10 @@ export const dynamic = 'force-dynamic'
  * GET - Lista versioni per evento
  * Query params: eventoId (required), id (optional per singola versione)
  */
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req, ['ADMIN', 'REPORT', 'WORKER'])
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const { searchParams } = new URL(req.url)
     const eventoId = searchParams.get('eventoId')
@@ -60,7 +64,10 @@ export async function GET(req: Request) {
  * POST - Crea nuova versione (snapshot) dell'evento
  * Body: { eventoId, tipo, watermark, commento?, autore? }
  */
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
+  const auth = await requireAuth(req, ['ADMIN', 'REPORT', 'WORKER'])
+  if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
+
   try {
     const body = await req.json()
     const { eventoId, tipo, watermark, commento, autore } = body
@@ -127,7 +134,7 @@ export async function POST(req: Request) {
         numero: nuovoNumero,
         tipo,
         watermark,
-        snapshot,
+        snapshot: JSON.stringify(snapshot),
         hash,
         autore: autore || null,
         commento: commento || `Versione ${tipo} - ${watermark}`

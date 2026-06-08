@@ -23,6 +23,7 @@ interface PiattoBase {
   nome: string
   descrizione?: string
   categoria: 'antipasto' | 'primo' | 'secondo' | 'contorno' | 'dolce' | 'bevanda' | 'altro'
+  defaultSelected?: boolean
 }
 
 interface MenuBase {
@@ -81,7 +82,7 @@ export default function MenuBasePage() {
     try {
       const res = await fetch('/api/menu-base')
       const data = await res.json()
-      setMenuList(data)
+      setMenuList(Array.isArray(data) ? data : [])
     } catch (error) {
       console.error('Errore nel caricamento menu:', error)
     } finally {
@@ -156,12 +157,18 @@ export default function MenuBasePage() {
   }
 
   const handleEdit = (menu: MenuBase) => {
+    const struttura = typeof (menu as any).struttura === 'string'
+      ? (() => {
+          try { return JSON.parse((menu as any).struttura || '{}') } catch { return {} }
+        })()
+      : ((menu as any).struttura || {})
+
     setEditingMenu(menu)
     setFormData({
       nome: menu.nome,
-      descrizione: (menu as any).struttura?.descrizione || '',
-      prezzo: (menu as any).struttura?.prezzo?.toString() || '',
-      regole: (menu as any).struttura?.regole || {
+      descrizione: struttura?.descrizione || '',
+      prezzo: struttura?.prezzo?.toString() || '',
+      regole: struttura?.regole || {
         antipasti: 2,
         primi: 2,
         secondi: 1,
@@ -169,17 +176,25 @@ export default function MenuBasePage() {
         dolci: 1
       }
     })
-    setPiatti((menu as any).struttura?.piatti || [])
+    setPiatti(Array.isArray(struttura?.piatti)
+      ? struttura.piatti.map((p: any) => ({ ...p, defaultSelected: Boolean(p.defaultSelected) }))
+      : [])
     setIsCreating(true)
   }
 
   const handleDuplicate = (menu: MenuBase) => {
+    const struttura = typeof (menu as any).struttura === 'string'
+      ? (() => {
+          try { return JSON.parse((menu as any).struttura || '{}') } catch { return {} }
+        })()
+      : ((menu as any).struttura || {})
+
     setEditingMenu(null)
     setFormData({
       nome: `${menu.nome} (copia)`,
-      descrizione: (menu as any).struttura?.descrizione || '',
-      prezzo: (menu as any).struttura?.prezzo?.toString() || '',
-      regole: (menu as any).struttura?.regole || {
+      descrizione: struttura?.descrizione || '',
+      prezzo: struttura?.prezzo?.toString() || '',
+      regole: struttura?.regole || {
         antipasti: 2,
         primi: 2,
         secondi: 1,
@@ -187,7 +202,9 @@ export default function MenuBasePage() {
         dolci: 1
       }
     })
-    setPiatti((menu as any).struttura?.piatti || [])
+    setPiatti(Array.isArray(struttura?.piatti)
+      ? struttura.piatti.map((p: any) => ({ ...p, defaultSelected: Boolean(p.defaultSelected) }))
+      : [])
     setIsCreating(true)
   }
 
@@ -214,12 +231,13 @@ export default function MenuBasePage() {
       id: `piatto_${Date.now()}`,
       nome: '',
       descrizione: '',
-      categoria
+      categoria,
+      defaultSelected: false
     }
     setPiatti([...piatti, nuovoPiatto])
   }
 
-  const aggiornaPiatto = (id: string, campo: keyof PiattoBase, valore: string) => {
+  const aggiornaPiatto = (id: string, campo: keyof PiattoBase, valore: any) => {
     setPiatti(piatti.map(p => p.id === id ? { ...p, [campo]: valore } : p))
   }
 
@@ -396,6 +414,15 @@ export default function MenuBasePage() {
                           placeholder="Descrizione (opzionale)"
                           className="text-sm"
                         />
+                        <label className="inline-flex items-center gap-2 text-sm text-gray-700" data-testid={`menu-base-default-toggle-wrap-${piatto.id}`}>
+                          <input
+                            type="checkbox"
+                            checked={Boolean(piatto.defaultSelected)}
+                            onChange={(e) => aggiornaPiatto(piatto.id, 'defaultSelected' as keyof PiattoBase, e.target.checked as any)}
+                            data-testid={`menu-base-default-toggle-${piatto.id}`}
+                          />
+                          Selezionato di default nel menu evento
+                        </label>
                       </div>
                       <Button
                         variant="ghost"
@@ -468,7 +495,11 @@ export default function MenuBasePage() {
       ) : (
         <div className="grid gap-4">
           {menuList.map((menu) => {
-            const struttura = (menu as any).struttura || {}
+            const struttura = typeof (menu as any).struttura === 'string'
+              ? (() => {
+                  try { return JSON.parse((menu as any).struttura || '{}') } catch { return {} }
+                })()
+              : ((menu as any).struttura || {})
             const isExpanded = expandedMenuId === menu.id
             const piattiMenu = struttura.piatti || []
             
@@ -556,6 +587,11 @@ export default function MenuBasePage() {
                               {piattiCat.map((piatto: PiattoBase) => (
                                 <li key={piatto.id} className="text-sm text-gray-600">
                                   • {piatto.nome}
+                                  {piatto.defaultSelected && (
+                                    <span className="ml-2 text-[10px] bg-green-100 text-green-700 px-1.5 py-0.5 rounded">
+                                      default
+                                    </span>
+                                  )}
                                 </li>
                               ))}
                             </ul>

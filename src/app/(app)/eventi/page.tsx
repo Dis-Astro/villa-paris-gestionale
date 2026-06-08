@@ -47,8 +47,18 @@ export default function EventiPage() {
     try {
       const res = await fetch('/api/eventi')
       const data = await res.json()
-      setEventi(data)
-      setFilteredEventi(data)
+      const normalized = (Array.isArray(data) ? data : [])
+        .filter((e: any) => e.tipo !== 'Appuntamento')
+        .map((e: any) => {
+          const cp = e.clienti?.[0]?.cliente
+          return {
+            ...e,
+            clienteNome: e.clienteNome || [cp?.nome, cp?.cognome].filter(Boolean).join(' ').trim(),
+            clienteEmail: e.clienteEmail || cp?.email || ''
+          }
+        })
+      setEventi(normalized)
+      setFilteredEventi(normalized)
     } catch (error) {
       console.error('Errore nel caricamento eventi:', error)
     } finally {

@@ -1,0 +1,120 @@
+{
+  "summary": "Iteration 20: Tested REPORT role permissions and first contact logic. All features working correctly - REPORT user sees only allowed menu items (7 items), is blocked from restricted pages/APIs, rapportini are read-only, dashboard doesn't show 'Nuovo Evento'. First contact logic correctly saves dataPrimoContatto as today's date when creating future appointments.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_report_role_iter20.py",
+    "/app/test_reports/pytest/pytest_results_iter20.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [
+    "/app/backend/tests/test_report_role_iter20.py"
+  ],
+  "success_rate": {
+    "backend": "100% (27/27 passed)",
+    "frontend": "100%"
+  },
+  "test_credentials": {
+    "admin": "admin@villaparis.local / Admin123!",
+    "report": "report.temp@villaparis.local / Report123!"
+  },
+  "seed_data_creation": "Used existing test users, created and cleaned up test clients during API testing",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "REPORT role permissions fully tested and working. First contact logic verified - dataPrimoContatto is set to today's date when creating future appointments. All menu restrictions, API blocks, and read-only modes working correctly.",
+  "features_tested": {
+    "report_role_menu_items": {
+      "status": "PASS",
+      "details": "REPORT user sees exactly 7 menu items: Dashboard, Calendario, Rapportini Interni, Report Operativo, Report Eventi, Stampe, Audit Log"
+    },
+    "report_role_blocked_pages": {
+      "status": "PASS",
+      "details": "REPORT user is redirected to /dashboard when accessing /clienti, /eventi, /appuntamenti, /menu-base, /impostazioni, /utenti"
+    },
+    "report_role_blocked_apis": {
+      "status": "PASS",
+      "details": "REPORT user gets 403 on POST/PUT/DELETE for /api/clienti, /api/eventi, /api/appuntamenti, /api/presenze-villa, /api/users"
+    },
+    "report_dashboard_no_nuovo_evento": {
+      "status": "PASS",
+      "details": "Dashboard for REPORT user doesn't show 'Nuovo Evento' button, shows 'Rapportini' and 'Stampe' quick actions instead"
+    },
+    "report_rapportini_readonly": {
+      "status": "PASS",
+      "details": "Rapportini page for REPORT user shows only the list (read-only), no form for adding new presenze, PDF export available"
+    },
+    "report_calendario_no_nuovo_evento": {
+      "status": "PASS",
+      "details": "Calendario page for REPORT user doesn't show 'Nuovo Evento' button"
+    },
+    "first_contact_date_logic": {
+      "status": "PASS",
+      "details": "When creating future appointment with new client, dataPrimoContatto is set to today's date, not the appointment date"
+    },
+    "first_contact_in_calendar": {
+      "status": "PASS",
+      "details": "First contacts appear in calendar with brown color and 📋 prefix, tooltip shows 'Registrazione 1° contatto'"
+    },
+    "first_contact_interazione": {
+      "status": "PASS",
+      "details": "primo_contatto interazione is created when new client is added via appointment"
+    },
+    "report_operativo_intact": {
+      "status": "PASS",
+      "details": "/api/report/stats returns valid data with summary, sources, operators, activities, meta"
+    },
+    "report_eventi_intact": {
+      "status": "PASS",
+      "details": "/api/eventi returns list of events for Report Eventi page"
+    },
+    "report_can_access_allowed_pages": {
+      "status": "PASS",
+      "details": "REPORT user can access /dashboard, /calendario, /rapportini-interni, /report/azienda, /report/eventi, /stampe, /audit"
+    }
+  },
+  "ui_verification": {
+    "report_sidebar": {
+      "visible_items": ["Dashboard", "Calendario", "Rapportini Interni", "Report Operativo", "Report Eventi", "Stampe", "Audit Log"],
+      "hidden_items": ["Appuntamenti", "Eventi", "Clienti", "Menu Base", "Gestione Utenti", "Impostazioni"],
+      "quick_action_button": "Apri Report (not 'Nuovo Evento')"
+    },
+    "report_dashboard": {
+      "hero_buttons": ["Apri report completo"],
+      "quick_actions": ["Rapportini", "Stampe", "Report", "Calendario"],
+      "hidden_buttons": ["Nuovo evento", "Clienti"]
+    },
+    "report_rapportini": {
+      "visible": ["Presenze registrate table", "Stampa/PDF button", "Data selector", "Vista selector"],
+      "hidden": ["Nuova presenza form", "Submit button"]
+    },
+    "admin_sidebar": {
+      "visible_items": ["Dashboard", "Calendario", "Appuntamenti", "Eventi", "Clienti", "Rapportini Interni", "Menu Base", "Report Operativo", "Report Eventi", "Stampe", "Audit Log", "Gestione Utenti", "Impostazioni"],
+      "quick_action_button": "Nuovo Evento"
+    }
+  },
+  "api_verification": {
+    "REPORT_blocked_apis": {
+      "POST /api/clienti": "403 Permesso negato",
+      "POST /api/eventi": "403 Permesso negato",
+      "POST /api/appuntamenti": "403 Permesso negato",
+      "POST /api/presenze-villa": "403 Permesso negato",
+      "GET /api/users": "403 Permesso negato"
+    },
+    "REPORT_allowed_apis": {
+      "GET /api/clienti": "200 OK (read-only)",
+      "GET /api/eventi": "200 OK (read-only)",
+      "GET /api/appuntamenti": "200 OK (read-only)",
+      "GET /api/presenze-villa": "200 OK (read-only)",
+      "GET /api/report/stats": "200 OK",
+      "GET /api/audit": "200 OK"
+    }
+  }
+}

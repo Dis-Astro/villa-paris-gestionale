@@ -1,95 +1,50 @@
 # Villa Paris Gestionale - PRD
 
-## Problema originale
-Sistema gestionale per location eventi (matrimoni, battesimi, feste).
-L'utente vuole un'applicazione finita, pulita e facilmente deployabile.
-
-## Target
-Gestori di Villa Paris (location eventi).
-
-## Requisiti implementati
-
-### UI & Layout
-- [x] Layout AppShell (sidebar + topbar) unificato su tutte le pagine
-- [x] Navigazione coerente tra dashboard, calendario, eventi, clienti, report
-
-### Funzionalità Core
-- [x] Dashboard con KPI e statistiche
-- [x] Calendario eventi con appuntamenti rapidi (1-click)
-- [x] Gestione eventi CRUD completa
-- [x] Menu Base - template con selezione piatti
-- [x] Piantina sala - drag & drop con varianti alimentari
-- [x] Stampe PDF - contratti e documenti operativi
-- [x] Report con export Excel
-- [x] Versioning - snapshot anti-contestazione
-- [x] Blocco automatico modifiche a -10 giorni
-
-### Database & Backend
-- [x] Migrazione da SQLite a PostgreSQL
-- [x] Prisma ORM con schema aggiornato
-- [x] Singleton client Prisma per connessioni efficienti
-- [x] Migrazioni SQL versionate
-
-### Deploy & Infrastructure
-- [x] Dockerfile multi-stage per Next.js 15
-- [x] docker-compose.yml con variabili d'ambiente (no credenziali hardcoded)
-- [x] docker/entrypoint.sh per migrazioni automatiche all'avvio
-- [x] .env.example completo
-- [x] Script Proxmox one-liner (install-ct.sh + ct-setup.sh)
-- [x] Bug fix: stdout contaminato in download_template → tutti i log su stderr (>&2)
-- [x] GitHub Actions CI/CD deploy automatico (.github/workflows/deploy.yml)
-
-### Pulizia & Standardizzazione
-- [x] Rimossi tutti i riferimenti a "Emergent"
-- [x] Standardizzato su npm (rimosso yarn.lock)
-- [x] .gitignore pulito
-- [x] Struttura file organizzata
+## Problema Originale
+Gestionale full-stack per Villa Paris per gestione eventi, clienti, appuntamenti, calendario, planimetrie, menu, reportistica e presenze in villa.
 
 ## Architettura
+- **Frontend**: Next.js 15 (App Router), React 18, Tailwind CSS, shadcn/ui
+- **Backend**: Next.js API Routes (App Router)
+- **Database**: SQLite (dev) / PostgreSQL (prod) via Prisma ORM
+- **Auth**: JWT custom con cookie httpOnly (ruoli: ADMIN, REPORT, WORKER)
+- **Google Calendar**: googleapis npm, OAuth2 con auto-refresh tokens
+- **Meteo**: Open-Meteo API (gratuita)
 
-```
-/app
-├── docker/
-│   └── entrypoint.sh         # Migrazioni DB all'avvio
-├── prisma/
-│   ├── migrations/
-│   └── schema.prisma          # Schema PostgreSQL
-├── proxmox/
-│   ├── install-ct.sh          # Installer Proxmox (crea LXC, push ct-setup.sh)
-│   └── ct-setup.sh            # Setup container (Docker, clone, .env, build, up)
-├── public/uploads/
-├── src/
-│   ├── app/
-│   │   ├── (app)/             # Pagine con layout AppShell
-│   │   └── api/               # API Routes Next.js
-│   ├── components/layout/
-│   │   └── AppShell.tsx
-│   └── lib/
-│       └── prisma.ts          # Singleton Prisma client
-├── .env.example
-├── docker-compose.yml         # Usa ${POSTGRES_USER:-default}
-├── Dockerfile
-└── README.md
-```
+## Funzionalita' implementate
 
-## Stack Tecnologico
-- Frontend: Next.js 15 (App Router), React 19, TypeScript, Tailwind CSS, shadcn/ui
-- Backend: Next.js API Routes
-- Database: PostgreSQL 16 + Prisma ORM
-- Deploy: Docker, Docker Compose, Bash (Proxmox LXC)
-- Librerie: pdfmake, exceljs, react-dnd, recharts, FullCalendar
+### FASE 1-3 (Completate)
+- Gestione Contatti/Appuntamenti/Eventi, Calendario, Dashboard, Auth JWT, Reportistica
 
-## Backlog P0/P1/P2
+### FASE 4 - v2.0.0 (Completata)
+- Meteo automatico rapportini, Quick-fill visitatori, Tavolo Imperiale, Piano B planimetrie
 
-### P1 - Upcoming
-- [ ] Pagina Impostazioni (attualmente placeholder)
-- [ ] Ripristino versione evento (API + UI button)
+### FASE 5 - Google Calendar (Completata + Fix)
+- OAuth2 Connect con redirect a dominio produzione (gestionale.villaparis.it)
+- Sync automatico eventi (con dataConfermata O dateProposte come fallback)
+- Sync automatico appuntamenti (creazione/modifica/cancellazione)
+- Rilevamento modifiche esterne + validazione admin
+- Token refresh esplicito con gestione invalid_grant
+- Pulsante Riconnetti per token scaduti
 
-### P2 - Backlog
-- [ ] CRUD Clienti migliorato
-- [ ] Fix doppio click su tavoli sovrapposti nella piantina
+### Fix Google Calendar (Applicati)
+- **Redirect OAuth**: Ora usa NEXT_PUBLIC_APP_URL invece di req.url (risolveva 0.0.0.0:3000)
+- **Eventi non visibili**: Usa dateProposte come fallback quando dataConfermata e' null
+- **Date tutto il giorno**: End date = giorno successivo (requisito Google Calendar API)
+- **Duplicazione**: gcalEventId tracciato e controllato prima di creare nuovi eventi
+- **Sync alla creazione**: Aggiunta auto-sync su POST eventi (prima solo PUT/DELETE)
+- **Parsing dateProposte**: dbJsonParse applicato in sync route e auto-sync helper
+- **Credenziali login**: Rimosse dal form (campi vuoti)
 
-## One-Liner Proxmox
-```bash
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/Dis-Astro/villa-paris-gestionale/main/proxmox/install-ct.sh)"
-```
+## Dominio produzione
+- URL: https://gestionale.villaparis.it
+- OAuth Callback: https://gestionale.villaparis.it/api/oauth/google-calendar/callback
+
+## Credenziali di test
+- Admin: admin@villaparis.local / Admin123!
+- Worker: worker.check@villaparis.local / Worker123!
+
+## Backlog
+- (P2) Preset schemi tavoli per fasce di invitati
+- (P2) Preset menu per tipologia evento
+- (P2) Fix warning Recharts nei grafici

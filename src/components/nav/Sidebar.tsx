@@ -2,6 +2,8 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { useMemo } from 'react'
+import type { CurrentUser } from '../layout/AppShell'
 import {
   Calendar,
   Users,
@@ -11,6 +13,7 @@ import {
   BarChart3,
   Settings,
   Home,
+  Handshake,
   X,
   ChevronRight
 } from 'lucide-react'
@@ -19,61 +22,111 @@ interface SidebarProps {
   isOpen: boolean
   onClose: () => void
   currentPath: string
+  user: CurrentUser | null
 }
 
-const menuItems = [
+type Role = 'ADMIN' | 'REPORT' | 'WORKER'
+
+const menuItems: Array<{ label: string; href: string; icon: any; description: string; roles: Role[] }> = [
   {
     label: 'Dashboard',
     href: '/dashboard',
     icon: Home,
-    description: 'Panoramica generale'
+    description: 'Panoramica generale',
+    roles: ['ADMIN', 'REPORT']
   },
   {
     label: 'Calendario',
     href: '/calendario',
     icon: Calendar,
-    description: 'Eventi e prenotazioni'
+    description: 'Eventi e prenotazioni',
+    roles: ['ADMIN', 'REPORT', 'WORKER']
+  },
+  {
+    label: 'Appuntamenti',
+    href: '/appuntamenti',
+    icon: Handshake,
+    description: 'Scheda centrale pre-evento',
+    roles: ['ADMIN', 'WORKER']
   },
   {
     label: 'Eventi',
     href: '/eventi',
     icon: LayoutGrid,
-    description: 'Gestione eventi'
+    description: 'Gestione eventi',
+    roles: ['ADMIN', 'WORKER']
   },
   {
     label: 'Clienti',
     href: '/clienti',
     icon: Users,
-    description: 'Anagrafica clienti'
+    description: 'Anagrafica clienti',
+    roles: ['ADMIN', 'WORKER']
+  },
+  {
+    label: 'Rapportini Interni',
+    href: '/rapportini-interni',
+    icon: FileText,
+    description: 'Presenze e passaggi in Villa',
+    roles: ['ADMIN', 'REPORT', 'WORKER']
   },
   {
     label: 'Menu Base',
     href: '/menu-base',
     icon: UtensilsCrossed,
-    description: 'Template menu'
+    description: 'Template menu',
+    roles: ['ADMIN', 'WORKER']
   },
   {
-    label: 'Report',
+    label: 'Report Operativo',
     href: '/report/azienda',
     icon: BarChart3,
-    description: 'Report e statistiche'
+    description: 'Contatti, appuntamenti e funnel',
+    roles: ['ADMIN', 'REPORT']
+  },
+  {
+    label: 'Report Eventi',
+    href: '/report/eventi',
+    icon: FileText,
+    description: 'Storico eventi ed export',
+    roles: ['ADMIN', 'REPORT']
   },
   {
     label: 'Stampe',
     href: '/stampe',
     icon: FileText,
-    description: 'Documenti PDF'
+    description: 'Documenti PDF',
+    roles: ['ADMIN', 'REPORT', 'WORKER']
+  },
+  {
+    label: 'Audit Log',
+    href: '/audit',
+    icon: FileText,
+    description: 'Storico modifiche',
+    roles: ['ADMIN', 'REPORT']
+  },
+  {
+    label: 'Gestione Utenti',
+    href: '/utenti',
+    icon: Users,
+    description: 'Ruoli e accessi',
+    roles: ['ADMIN']
   },
   {
     label: 'Impostazioni',
     href: '/impostazioni',
     icon: Settings,
-    description: 'Configurazione'
+    description: 'Configurazione',
+    roles: ['ADMIN']
   }
 ]
 
-export default function Sidebar({ isOpen, onClose, currentPath }: SidebarProps) {
+export default function Sidebar({ isOpen, onClose, currentPath, user }: SidebarProps) {
   const router = useRouter()
+  const role = user?.role ?? null
+  const email = user?.email ?? ''
+
+  const visibleMenu = useMemo(() => (role ? menuItems.filter((item) => item.roles.includes(role)) : []), [role])
 
   const isActive = (href: string) => {
     if (href === '/dashboard') return currentPath === '/' || currentPath === '/dashboard'
@@ -83,11 +136,12 @@ export default function Sidebar({ isOpen, onClose, currentPath }: SidebarProps) 
   return (
     <aside
       className={`
-        fixed inset-y-0 left-0 z-50 w-64 bg-slate-900 text-white
+        fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-col overflow-hidden bg-slate-900 text-white
         transform transition-transform duration-300 ease-in-out
         lg:translate-x-0
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}
+      data-testid="sidebar-shell"
     >
       {/* Header */}
       <div className="flex items-center justify-between h-16 px-4 border-b border-slate-700">
@@ -111,8 +165,8 @@ export default function Sidebar({ isOpen, onClose, currentPath }: SidebarProps) 
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
-        {menuItems.map((item) => {
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1" data-testid="sidebar-scroll-area">
+        {visibleMenu.map((item) => {
           const active = isActive(item.href)
           const Icon = item.icon
           
@@ -144,28 +198,30 @@ export default function Sidebar({ isOpen, onClose, currentPath }: SidebarProps) 
       </nav>
 
       {/* Quick actions */}
-      <div className="p-4 border-t border-slate-700">
+      <div className="shrink-0 border-t border-slate-700 p-4">
         <button
           onClick={() => {
-            router.push('/nuovo-evento')
+            if (!role) return
+            router.push(role === 'WORKER' ? '/rapportini-interni' : role === 'REPORT' ? '/report/azienda' : '/nuovo-evento')
             onClose()
           }}
+          disabled={!role}
           className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-medium rounded-lg transition-colors"
         >
           <Calendar className="w-5 h-5" />
-          Nuovo Evento
+          {role === 'WORKER' ? 'Nuovo Rapportino' : role === 'REPORT' ? 'Apri Report' : 'Nuovo Evento'}
         </button>
       </div>
 
       {/* User info */}
-      <div className="p-4 border-t border-slate-700">
+      <div className="shrink-0 border-t border-slate-700 p-4">
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center">
             <Users className="w-5 h-5 text-slate-400" />
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium truncate">Admin</p>
-            <p className="text-xs text-slate-400 truncate">Amministratore</p>
+            <p className="text-sm font-medium truncate">{email || 'Utente autenticato'}</p>
+            <p className="text-xs text-slate-400 truncate">{role}</p>
           </div>
         </div>
       </div>

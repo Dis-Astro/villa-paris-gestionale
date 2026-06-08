@@ -23,6 +23,7 @@ type StazioneProps = {
   onDelete: () => void
   onRename: (nome: string) => void
   editabile: boolean
+  dragEnabled?: boolean
   containerRef: React.RefObject<HTMLDivElement | null> // obbligatorio!
 }
 
@@ -35,6 +36,7 @@ export default function Stazione({
   onDelete,
   onRename,
   editabile,
+  dragEnabled = true,
   containerRef
 }: StazioneProps) {
   const ref = useRef<HTMLDivElement>(null)
@@ -75,7 +77,7 @@ export default function Stazione({
         onDragEnd({ x: xPerc, y: yPerc })
       }
     },
-    canDrag: editabile
+    canDrag: editabile && dragEnabled
   })
 
   drag(ref)
@@ -96,22 +98,26 @@ export default function Stazione({
         lineHeight: `${altezza}px`,
         transform: `rotate(${stazione.rotazione || 0}deg)`,
         zIndex: selected ? 10 : 1,
-        cursor: editabile ? 'move' : 'default',
+        cursor: editabile ? (dragEnabled ? 'move' : 'default') : 'default',
         userSelect: 'none',
         boxSizing: 'border-box'
       }}
-      onClick={onSelect}
+      onClick={(e) => { e.stopPropagation(); onSelect() }}
+      data-testid={`stazione-${stazione.id}`}
     >
       {stazione.nome}
       {editabile && selected && (
-        <div style={{ marginTop: 8, background: '#fff', borderRadius: 4, padding: 2 }}>
-          <button onClick={onDelete} style={{ color: 'red', marginRight: 4, border: 0, background: 'none' }}>🗑</button>
-          <button onClick={() => onRotate(((stazione.rotazione || 0) + 45) % 360)} style={{ border: 0, background: 'none' }}>↻</button>
+        <div style={{ marginTop: 8, background: '#fff', borderRadius: 6, padding: 4 }}>
+          <button onClick={onDelete} style={{ color: 'red', marginRight: 4, border: 0, background: 'none' }} data-testid={`delete-stazione-${stazione.id}`}>🗑</button>
+          <button onClick={() => onRotate(((stazione.rotazione || 0) + 45) % 360)} style={{ border: 0, background: 'none' }} data-testid={`rotate-stazione-${stazione.id}`}>↻</button>
           <input
             type="text"
             value={stazione.nome}
             onChange={e => onRename(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
             style={{ width: 80, marginLeft: 4, border: '1px solid #ccc', borderRadius: 4, padding: '0 2px' }}
+            data-testid={`rename-stazione-${stazione.id}`}
           />
         </div>
       )}

@@ -25,7 +25,7 @@ fi
 
 # Valori di default (override da config file o variabili d'ambiente)
 REPO_URL="${REPO_URL:-https://github.com/Dis-Astro/villa-paris-gestionale.git}"
-REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_BRANCH="${REPO_BRANCH:-OPUS}"
 DB_USER="${DB_USER:-villaparis}"
 DB_PASS="${DB_PASS:-villaparis}"
 DB_NAME="${DB_NAME:-villaparis}"

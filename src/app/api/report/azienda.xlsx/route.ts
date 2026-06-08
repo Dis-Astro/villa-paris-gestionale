@@ -1,188 +1,267 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import ExcelJS from 'exceljs'
-import prisma from '@/lib/prisma'
+import { requireAuth } from '@/lib/auth'
+import { formatDateTime, formatMinutes } from '@/lib/report/types'
+import { getOperationalReport, parseReportFilters } from '@/lib/report/operational'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-/**
- * GET /api/report/azienda.xlsx
- * Genera report Excel con formato aziendale
- * Query params: from, to, tipo, luogo
- */
-export async function GET(req: Request) {
+export async function GET(req: NextRequest) {
+  const auth = await requireAuth(req, ['ADMIN', 'REPORT'])
+  if (!auth.ok) {
+    return NextResponse.json({ error: auth.error }, { status: auth.status })
+  }
+
   try {
     const { searchParams } = new URL(req.url)
-    const from = searchParams.get('from')
-    const to = searchParams.get('to')
-    const tipo = searchParams.get('tipo')
-    const luogo = searchParams.get('luogo')
+    const filters = parseReportFilters(searchParams)
+    const report = await getOperationalReport(filters)
 
-    // Build query filters
-    const where: any = {}
-    
-    if (from || to) {
-      where.dataConfermata = {}
-      if (from) where.dataConfermata.gte = new Date(from)
-      if (to) where.dataConfermata.lte = new Date(to)
-    }
-    
-    if (tipo) where.tipo = tipo
-    if (luogo) where.luogo = luogo
+    const wb = new ExcelJS.Workbook()
+    wb.creator = 'Villa Paris Gestionale'
+    wb.created = new Date()
 
-    // Fetch eventi with clients
-    const eventi = await prisma.evento.findMany({
-      where,
-      include: {
-        clienti: {
-          include: { cliente: true }
+    const applyHeader = (row: ExcelJS.Row, cells: number) => {
+      row.font = { bold: true, color: { argb: 'FFFFFF' }, size: 11 }
+      row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: '1E3A5F' } }
+      row.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true }
+      for (let c = 1; c <= cells; c += 1) {
+        row.getCell(c).border = {
+          top: { style: 'thin', color: { argb: 'CBD5E1' } },
+          bottom: { style: 'thin', color: { argb: 'CBD5E1' } },
+          left: { style: 'thin', color: { argb: 'CBD5E1' } },
+          right: { style: 'thin', color: { argb: 'CBD5E1' } }
         }
-      },
-      orderBy: { dataConfermata: 'asc' }
+      }
+    }
+
+    const styleDataRow = (row: ExcelJS.Row, cells: number, fill?: string) => {
+      if (fill) {
+        row.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: fill } }
+      }
+      for (let c = 1; c <= cells; c += 1) {
+        row.getCell(c).border = {
+          top: { style: 'thin', color: { argb: 'E2E8F0' } },
+          bottom: { style: 'thin', color: { argb: 'E2E8F0' } },
+          left: { style: 'thin', color: { argb: 'E2E8F0' } },
+          right: { style: 'thin', color: { argb: 'E2E8F0' } }
+        }
+      }
+    }
+
+    const summarySheet = wb.addWorksheet('Sintesi Operativa', {
+      properties: { tabColor: { argb: 'D4AF37' } },
+      pageSetup: { orientation: 'landscape', fitToPage: true }
     })
 
-    // Create Excel workbook
-    const workbook = new ExcelJS.Workbook()
-    workbook.creator = 'Villa Paris Gestionale'
-    workbook.created = new Date()
-
-    // Sheet 1: Report Aziendale
-    const sheet = workbook.addWorksheet('Report Aziendale', {
-      properties: { tabColor: { argb: 'FFD700' } }
-    })
-
-    // Define columns (matching your template)
-    sheet.columns = [
-      { header: 'Mese', key: 'mese', width: 15 },
-      { header: 'Evento', key: 'evento', width: 25 },
-      { header: 'Sposa / Festeggiato', key: 'sposa', width: 20 },
-      { header: 'Sposo', key: 'sposo', width: 20 },
-      { header: 'Menù pasto', key: 'menuPasto', width: 30 },
-      { header: 'Menù Buffet', key: 'menuBuffet', width: 30 },
-      { header: 'Luogo', key: 'luogo', width: 15 },
-      { header: 'Pranzo/Cena', key: 'fascia', width: 12 },
-      { header: 'N°Persone', key: 'persone', width: 12 },
-      { header: 'Prezzo', key: 'prezzo', width: 12 },
-      { header: 'Totale', key: 'totale', width: 15 }
+    summarySheet.columns = [
+      { key: 'label', width: 36 },
+      { key: 'value', width: 24 },
+      { key: 'note', width: 60 }
     ]
 
-    // Style header row
-    const headerRow = sheet.getRow(1)
-    headerRow.font = { bold: true, color: { argb: 'FFFFFF' } }
-    headerRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: '1E3A5F' }
-    }
-    headerRow.alignment = { horizontal: 'center', vertical: 'middle' }
-    headerRow.height = 25
+    summarySheet.mergeCells('A1:C1')
+    const titleCell = summarySheet.getCell('A1')
+    titleCell.value = 'VILLA PARIS – Report Operativo'
+    titleCell.font = { bold: true, size: 16, color: { argb: '1E3A5F' } }
+    titleCell.alignment = { horizontal: 'center', vertical: 'middle' }
+    summarySheet.getRow(1).height = 28
 
-    // Add data rows
-    eventi.forEach((evento, index) => {
-      const rowNum = index + 2
-      
-      // Get cliente principale
-      const clientePrincipale = evento.clienti[0]?.cliente
-      
-      // Determina sposa/festeggiato
-      let sposa = evento.sposa || ''
-      let sposo = evento.sposo || ''
-      
-      if (!sposa && clientePrincipale) {
-        sposa = `${clientePrincipale.nome} ${clientePrincipale.cognome}`
-      }
+    summarySheet.mergeCells('A2:C2')
+    const periodCell = summarySheet.getCell('A2')
+    periodCell.value = `${report.meta.periodLabel} • Generato il ${formatDateTime(report.meta.generatedAt)}`
+    periodCell.font = { italic: true, size: 10, color: { argb: '6B7280' } }
+    periodCell.alignment = { horizontal: 'center' }
 
-      // Menu descriptions
-      const menuObj = evento.menu as any
-      const menuPasto = evento.menuPasto || 
-        (menuObj?.portate?.map((p: any) => p.nome).join(', ')) || 
-        ''
-      const menuBuffet = evento.menuBuffet || ''
+    summarySheet.addRow([])
+    const summaryHeader = summarySheet.addRow(['KPI', 'Valore', 'Note'])
+    applyHeader(summaryHeader, 3)
 
-      // Add row
-      const row = sheet.addRow({
-        mese: evento.dataConfermata 
-          ? new Date(evento.dataConfermata).toLocaleDateString('it-IT')
-          : '',
-        evento: evento.titolo,
-        sposa: sposa,
-        sposo: sposo,
-        menuPasto: menuPasto,
-        menuBuffet: menuBuffet,
-        luogo: evento.luogo || 'Villa Paris',
-        fascia: evento.fascia === 'pranzo' ? 'Pranzo' : 
-                evento.fascia === 'cena' ? 'Cena' : evento.fascia,
-        persone: evento.personePreviste || 0,
-        prezzo: evento.prezzo || 80,
-        totale: { formula: `I${rowNum}*J${rowNum}` }
+    const summaryRows = [
+      ['Contatti principali', report.summary.contactsPrimary, 'Nel settimanale gli spam restano visibili in rosso; nei periodi lunghi sono esclusi dalla policy.'],
+      ['Contatti validi', report.summary.contactsValid, 'Contatti non spam nel periodo.'],
+      ['Contatti spam', report.summary.contactsSpam, 'Valore informativo per controllo qualità lead.'],
+      ['Appuntamenti fissati', report.summary.appointmentsScheduled, 'Conteggio univoco degli appuntamenti nel periodo.'],
+      ['Appuntamenti svolti', report.summary.appointmentsCompleted, 'Esiti: svolto, positivo, negativo.'],
+      ['Interazioni cliente', report.summary.interactionsCount, 'Esclude le interazioni auto-generate di tipo appuntamento per evitare doppi conteggi.'],
+      ['Tempo totale dedicato', formatMinutes(report.summary.totalTimeMinutes), 'Appuntamenti + interazioni manuali.'],
+      ['Eventi confermati', report.summary.confirmedEvents, 'Eventi con data confermata nel periodo.'],
+      ['Clienti coinvolti', report.summary.clientsCount, 'Clienti con contatto o attività nel periodo.'],
+      ['Spam esclusi dalla policy', report.summary.contactsExcludedByPolicy, report.meta.spamPolicyLabel]
+    ]
+
+    summaryRows.forEach((values, index) => {
+      const row = summarySheet.addRow(values)
+      styleDataRow(row, 3, index % 2 === 0 ? 'F8FAFC' : undefined)
+    })
+
+    const clientsSheet = wb.addWorksheet('Clienti Periodo', {
+      properties: { tabColor: { argb: '2563EB' } },
+      pageSetup: { orientation: 'landscape', fitToPage: true }
+    })
+    clientsSheet.columns = [
+      { key: 'cliente', width: 24 },
+      { key: 'fonte', width: 16 },
+      { key: 'primoContatto', width: 18 },
+      { key: 'spam', width: 12 },
+      { key: 'appFissati', width: 14 },
+      { key: 'appSvolti', width: 14 },
+      { key: 'interazioni', width: 14 },
+      { key: 'tempo', width: 16 },
+      { key: 'eventi', width: 14 },
+      { key: 'operatori', width: 28 },
+      { key: 'esiti', width: 18 },
+      { key: 'funnel', width: 18 },
+      { key: 'riassunto', width: 42 }
+    ]
+    const clientsHeader = clientsSheet.addRow([
+      'Cliente', 'Provenienza', 'Primo contatto', 'Spam', 'App. fissati', 'App. svolti',
+      'Interazioni', 'Tempo dedicato', 'Eventi', 'Operatori', 'Esiti', 'Funnel', 'Riassunto'
+    ])
+    applyHeader(clientsHeader, 13)
+
+    report.clients.forEach((client, index) => {
+      const row = clientsSheet.addRow({
+        cliente: client.fullName,
+        fonte: client.source,
+        primoContatto: formatDateTime(client.firstContactAt),
+        spam: client.isSpam ? `SI${client.spamReason ? ` - ${client.spamReason}` : ''}` : 'No',
+        appFissati: client.appointmentsScheduled,
+        appSvolti: client.appointmentsCompleted,
+        interazioni: client.interactionsCount,
+        tempo: formatMinutes(client.totalTimeMinutes),
+        eventi: client.confirmedEvents,
+        operatori: client.operators.join(', '),
+        esiti: client.outcomes.join(', '),
+        funnel: client.funnels.join(', '),
+        riassunto: client.summary
       })
-
-      // Alternate row colors
-      if (index % 2 === 0) {
-        row.fill = {
-          type: 'pattern',
-          pattern: 'solid',
-          fgColor: { argb: 'F3F4F6' }
-        }
+      const fill = client.isSpam ? 'FEE2E2' : (index % 2 === 0 ? 'F8FAFC' : undefined)
+      styleDataRow(row, 13, fill)
+      if (client.isSpam) {
+        row.font = { color: { argb: '991B1B' }, bold: true }
       }
-
-      // Format currency columns
-      row.getCell('prezzo').numFmt = '€#,##0.00'
-      row.getCell('totale').numFmt = '€#,##0.00'
     })
 
-    // Add totals row
-    const lastDataRow = eventi.length + 1
-    const totalsRow = sheet.addRow({
-      mese: '',
-      evento: 'TOTALE',
-      sposa: '',
-      sposo: '',
-      menuPasto: '',
-      menuBuffet: '',
-      luogo: '',
-      fascia: '',
-      persone: { formula: `SUM(I2:I${lastDataRow})` },
-      prezzo: '',
-      totale: { formula: `SUM(K2:K${lastDataRow})` }
+    const activitiesSheet = wb.addWorksheet('Attivita', {
+      properties: { tabColor: { argb: '0EA5E9' } }
+    })
+    activitiesSheet.columns = [
+      { key: 'data', width: 20 },
+      { key: 'cliente', width: 22 },
+      { key: 'tipo', width: 18 },
+      { key: 'operatore', width: 24 },
+      { key: 'esito', width: 16 },
+      { key: 'durata', width: 14 },
+      { key: 'riepilogo', width: 52 }
+    ]
+    const activitiesHeader = activitiesSheet.addRow(['Data', 'Cliente', 'Tipo', 'Operatore', 'Esito/Stato', 'Durata', 'Riepilogo'])
+    applyHeader(activitiesHeader, 7)
+    report.activities.forEach((activity, index) => {
+      const row = activitiesSheet.addRow({
+        data: formatDateTime(activity.date),
+        cliente: activity.clientName,
+        tipo: activity.type,
+        operatore: activity.operator,
+        esito: activity.outcome,
+        durata: formatMinutes(activity.durationMinutes),
+        riepilogo: activity.summary
+      })
+      styleDataRow(row, 7, activity.isSpam ? 'FEE2E2' : (index % 2 === 0 ? 'F8FAFC' : undefined))
     })
 
-    totalsRow.font = { bold: true }
-    totalsRow.fill = {
-      type: 'pattern',
-      pattern: 'solid',
-      fgColor: { argb: 'D4AF37' }
+    const sourcesSheet = wb.addWorksheet('Provenienza Lead', {
+      properties: { tabColor: { argb: '22C55E' } }
+    })
+    sourcesSheet.columns = [
+      { key: 'source', width: 24 },
+      { key: 'totale', width: 14 },
+      { key: 'validi', width: 14 },
+      { key: 'spam', width: 14 }
+    ]
+    const sourcesHeader = sourcesSheet.addRow(['Provenienza', 'Contatti totali', 'Contatti validi', 'Spam'])
+    applyHeader(sourcesHeader, 4)
+    report.sources.forEach((source, index) => {
+      const row = sourcesSheet.addRow({
+        source: source.source,
+        totale: source.contactsTotal,
+        validi: source.contactsValid,
+        spam: source.contactsSpam
+      })
+      styleDataRow(row, 4, index % 2 === 0 ? 'F8FAFC' : undefined)
+    })
+
+    const operatorsSheet = wb.addWorksheet('Operatori', {
+      properties: { tabColor: { argb: 'A855F7' } }
+    })
+    operatorsSheet.columns = [
+      { key: 'operatore', width: 26 },
+      { key: 'clienti', width: 12 },
+      { key: 'fissati', width: 16 },
+      { key: 'svolti', width: 16 },
+      { key: 'interazioni', width: 14 },
+      { key: 'tempo', width: 16 },
+      { key: 'eventi', width: 14 }
+    ]
+    const operatorsHeader = operatorsSheet.addRow(['Operatore', 'Clienti', 'App. fissati', 'App. svolti', 'Interazioni', 'Tempo dedicato', 'Eventi confermati'])
+    applyHeader(operatorsHeader, 7)
+    report.operators.forEach((operator, index) => {
+      const row = operatorsSheet.addRow({
+        operatore: operator.operatorName,
+        clienti: operator.clientsCount,
+        fissati: operator.appointmentsScheduled,
+        svolti: operator.appointmentsCompleted,
+        interazioni: operator.interactionsCount,
+        tempo: formatMinutes(operator.totalTimeMinutes),
+        eventi: operator.confirmedEvents
+      })
+      styleDataRow(row, 7, index % 2 === 0 ? 'F8FAFC' : undefined)
+    })
+
+    if (report.spamClients.length > 0) {
+      const spamSheet = wb.addWorksheet('Spam Settimanale', {
+        properties: { tabColor: { argb: 'DC2626' } }
+      })
+      spamSheet.columns = [
+        { key: 'cliente', width: 24 },
+        { key: 'motivo', width: 26 },
+        { key: 'fonte', width: 18 },
+        { key: 'primoContatto', width: 18 },
+        { key: 'riassunto', width: 48 }
+      ]
+      const spamHeader = spamSheet.addRow(['Cliente', 'Motivo spam', 'Provenienza', 'Primo contatto', 'Riepilogo'])
+      applyHeader(spamHeader, 5)
+      report.spamClients.forEach((client) => {
+        const row = spamSheet.addRow({
+          cliente: client.fullName,
+          motivo: client.spamReason || 'Non specificato',
+          fonte: client.source,
+          primoContatto: formatDateTime(client.firstContactAt),
+          riassunto: client.summary
+        })
+        styleDataRow(row, 5, 'FEE2E2')
+        row.font = { color: { argb: '991B1B' }, bold: true }
+      })
     }
-    totalsRow.getCell('totale').numFmt = '€#,##0.00'
 
-    // Add borders to all cells
-    const lastRow = eventi.length + 2
-    for (let row = 1; row <= lastRow; row++) {
-      for (let col = 1; col <= 11; col++) {
-        const cell = sheet.getCell(row, col)
-        cell.border = {
-          top: { style: 'thin', color: { argb: 'E5E7EB' } },
-          left: { style: 'thin', color: { argb: 'E5E7EB' } },
-          bottom: { style: 'thin', color: { argb: 'E5E7EB' } },
-          right: { style: 'thin', color: { argb: 'E5E7EB' } }
-        }
-      }
-    }
+    const buffer = await wb.xlsx.writeBuffer()
+    const filename = `VillaParis_Report_${filters.period}_${filters.referenceDate}.xlsx`
 
-    // Generate buffer
-    const buffer = await workbook.xlsx.writeBuffer()
-
-    // Return Excel file
-    return new NextResponse(buffer, {
+    return new NextResponse(buffer as ArrayBuffer, {
       status: 200,
       headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="VillaParis_Report_${new Date().toISOString().split('T')[0]}.xlsx"`,
-        'Cache-Control': 'no-cache'
+        'Content-Disposition': `attachment; filename="${filename}"`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
       }
     })
   } catch (error) {
-    console.error('Error generating Excel report:', error)
-    return new NextResponse('Errore nella generazione del report', { status: 500 })
+    console.error('[Report Excel] Errore:', error)
+    return new NextResponse(
+      JSON.stringify({ error: 'Errore nella generazione del report', detail: String(error) }),
+      { status: 500, headers: { 'Content-Type': 'application/json' } }
+    )
   }
 }

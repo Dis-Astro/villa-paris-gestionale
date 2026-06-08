@@ -23,8 +23,10 @@ type TavoloProps = {
   onRotate: (rot: number) => void
   onDelete: () => void
   onRename: (nome: string) => void
-  onOpenVarianti?: () => void  // Nuovo callback per aprire pannello varianti
+  onUpdatePosti: (posti: number) => void
+  onOpenVarianti?: () => void
   editabile: boolean
+  dragEnabled?: boolean
   containerRef: React.RefObject<HTMLDivElement | null>
 }
 
@@ -36,8 +38,10 @@ export default function Tavolo({
   onRotate,
   onDelete,
   onRename,
+  onUpdatePosti,
   onOpenVarianti,
   editabile,
+  dragEnabled = true,
   containerRef
 }: TavoloProps) {
   const ref = useRef<HTMLDivElement>(null)
@@ -57,7 +61,12 @@ export default function Tavolo({
 
   const left = (tavolo.posizione?.xPerc ?? 0) * containerSize.width
   const top = (tavolo.posizione?.yPerc ?? 0) * containerSize.height
+  const isImperiale = tavolo.forma === 'imperiale'
   const diametro = (tavolo.dimensionePerc ?? 0.1) * containerSize.width
+
+  // Imperiale: rettangolare lungo (3:1 ratio)
+  const width = isImperiale ? diametro * 3 : diametro
+  const height = isImperiale ? diametro * 0.8 : diametro
 
   const [, drag] = useDrag({
     type: 'TAVOLO',
@@ -77,7 +86,7 @@ export default function Tavolo({
         onDragEnd({ x: xPerc, y: yPerc })
       }
     },
-    canDrag: editabile
+    canDrag: editabile && dragEnabled
   })
 
   drag(ref)
@@ -88,7 +97,6 @@ export default function Tavolo({
     ? Object.values(tavolo.varianti!).reduce((sum, val) => sum + (val || 0), 0)
     : 0
   
-  // Trova la variante con più occorrenze per il colore del badge
   const variantePrincipale = hasVarianti
     ? Object.entries(tavolo.varianti!).reduce((max, [key, val]) => 
         (val || 0) > (max.val || 0) ? { key, val } : max, { key: '', val: 0 })
@@ -102,12 +110,10 @@ export default function Tavolo({
     onSelect()
   }
 
-  const handleDoubleClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
-    if (editabile && onOpenVarianti) {
-      onOpenVarianti()
-    }
-  }
+  const borderColor = selected ? '#2563eb' : hasVarianti ? coloreBadge : (isImperiale ? '#b45309' : '#999')
+  const bgColor = isImperiale 
+    ? (hasVarianti ? `${coloreBadge}15` : '#fef3c7')
+    : (hasVarianti ? `${coloreBadge}15` : '#f9f9f9')
 
   return (
     <div
@@ -116,11 +122,11 @@ export default function Tavolo({
         position: 'absolute',
         left,
         top,
-        width: diametro,
-        height: diametro,
-        border: selected ? '3px solid #2563eb' : hasVarianti ? `2px solid ${coloreBadge}` : '1px solid #999',
-        borderRadius: '50%',
-        background: hasVarianti ? `${coloreBadge}15` : '#f9f9f9',
+        width,
+        height,
+        border: selected ? `3px solid ${borderColor}` : `${isImperiale ? 2 : 1}px solid ${borderColor}`,
+        borderRadius: isImperiale ? 8 : '50%',
+        background: bgColor,
         textAlign: 'center',
         display: 'flex',
         flexDirection: 'column',
@@ -128,17 +134,19 @@ export default function Tavolo({
         justifyContent: 'center',
         transform: `rotate(${tavolo.rotazione || 0}deg)`,
         zIndex: selected ? 10 : 1,
-        cursor: editabile ? 'move' : 'default',
+        cursor: editabile ? (dragEnabled ? 'move' : 'default') : 'default',
         userSelect: 'none',
         boxSizing: 'border-box'
       }}
       onClick={handleClick}
-      onDoubleClick={handleDoubleClick}
       data-testid={`tavolo-${tavolo.id}`}
     >
       {/* Nome tavolo */}
-      <span style={{ fontSize: diametro * 0.25, fontWeight: 'bold' }}>
+      <span style={{ fontSize: Math.max(diametro * 0.25, 10), fontWeight: 'bold', color: isImperiale ? '#92400e' : undefined }}>
         {tavolo.numero}
+      </span>
+      <span style={{ fontSize: Math.max(diametro * 0.14, 8), color: '#4b5563' }}>
+        {tavolo.posti}p
       </span>
       
       {/* Badge varianti */}
@@ -167,17 +175,22 @@ export default function Tavolo({
         </div>
       )}
 
+      {/* Label imperiale */}
+      {isImperiale && !selected && (
+        <span style={{ fontSize: 8, color: '#b45309', position: 'absolute', bottom: 2 }}>IMP</span>
+      )}
+
       {/* Controlli quando selezionato */}
       {editabile && selected && (
         <div 
           style={{ 
             position: 'absolute',
-            bottom: -45,
+            bottom: -52,
             left: '50%',
             transform: 'translateX(-50%)',
             background: '#fff', 
             borderRadius: 8, 
-            padding: '4px 8px',
+            padding: '6px 8px',
             boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
             display: 'flex',
             gap: 4,
@@ -223,13 +236,26 @@ export default function Tavolo({
             value={tavolo.numero}
             onChange={e => onRename(e.target.value)}
             onClick={e => e.stopPropagation()}
+            onPointerDown={e => e.stopPropagation()}
             style={{
-              width: 40,
+              width: 48,
               border: '1px solid #ccc',
               borderRadius: 4,
               padding: '2px 4px',
               textAlign: 'center'
             }}
+            data-testid={`rename-tavolo-${tavolo.id}`}
+          />
+          <input
+            type="number"
+            min={1}
+            max={40}
+            value={tavolo.posti || 1}
+            onChange={(e) => onUpdatePosti(Math.max(1, Number(e.target.value) || 1))}
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+            style={{ width: 48, border: '1px solid #ccc', borderRadius: 4, padding: '2px 4px' }}
+            data-testid={`posti-tavolo-${tavolo.id}`}
           />
         </div>
       )}

@@ -1,0 +1,84 @@
+{
+  "summary": "Completed testing of 3 bug fixes in Villa Paris Gestionale. All 3 bugs are now FIXED: 1) PUT /api/eventi with disposizioneSala object saves correctly (no 'Unknown argument tavoli' error), 2) dateProposte JSON string parsing in modifica-evento works (dates are visible and editable), 3) POST /api/versioni snapshot serialization works (no Prisma type error).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/test_reports/iteration_4.json"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [],
+  "updated_files": [],
+  "success_rate": {
+    "backend": "100% (all bug fix APIs working)",
+    "frontend": "100% (modifica-evento, stampa, dashboard, report, clienti all working)"
+  },
+  "test_credentials": "None required - SQLite database at prisma/prisma/dev.db",
+  "seed_data_creation": "Used existing data (79 events, 92 clients). Event ID 37 'C18 Lara' used for testing.",
+  "retest_needed": false,
+  "main_agent_can_self_test": false,
+  "context_for_next_testing_agent": "All 3 reported bugs are fixed: 1) eventi route.ts line 210 uses toJson() for disposizioneSala serialization 2) modifica-evento page lines 49-57 parse JSON string fields correctly 3) versioni route.ts line 130 uses JSON.stringify() for snapshot. Event 37 has 2 versions now from testing.",
+  "features_tested": {
+    "bug_1_disposizioneSala_serialization": {
+      "status": "FIXED",
+      "details": "PUT /api/eventi?id=37 with disposizioneSala:{tavoli:[...],stazioni:[]} returns 200. Field saved as JSON string in SQLite.",
+      "api_test": "curl -X PUT with JSON object disposizioneSala returns serialized string"
+    },
+    "bug_2_dateProposte_parsing": {
+      "status": "FIXED",
+      "details": "modifica-evento/37 page shows dateProposte as clickable badges (03/01/2026). Data Confermata dropdown populated from dateProposte array.",
+      "ui_test": "Playwright confirmed date badge visible, 'Aggiungi Data' button works"
+    },
+    "bug_3_versioni_snapshot": {
+      "status": "FIXED",
+      "details": "POST /api/versioni creates version with snapshot as JSON string. No Prisma type error.",
+      "api_test": "curl -X POST returned versione with snapshot as string, numero:2"
+    },
+    "modifica_evento_save": {
+      "status": "PASS",
+      "details": "Modifying titolo/note and saving returns success (no 500 error)"
+    },
+    "stampa_modal": {
+      "status": "PASS",
+      "details": "Stampa button opens modal with BOZZA/CONTRATTO/DEFINITIVO options, Pacchetto Cliente and Documenti Operativi sections visible"
+    },
+    "clienti_modification": {
+      "status": "PASS",
+      "details": "PUT /api/clienti?id=9 with modified nome/telefono returns 200"
+    },
+    "dashboard": {
+      "status": "PASS",
+      "details": "Shows 92 clienti, 79 eventi, €15,200 ricavi this month"
+    },
+    "report_azienda": {
+      "status": "PASS",
+      "details": "Shows 40 eventi totali 2026, 5,061 ospiti, €404,880 ricavi with charts"
+    }
+  },
+  "bugs_verified_fixed": [
+    {
+      "bug": "PUT /api/eventi disposizioneSala error",
+      "root_cause": "disposizioneSala was passed as object to Prisma which expected string",
+      "fix_location": "src/app/api/eventi/route.ts line 210",
+      "fix": "toJson() function serializes object to JSON string before saving"
+    },
+    {
+      "bug": "dateProposte not editable in modifica-evento",
+      "root_cause": "Frontend was resetting parsed dateProposte array to [] incorrectly",
+      "fix_location": "src/app/(app)/modifica-evento/[id]/page.tsx lines 49-57",
+      "fix": "parseJson helper function properly handles JSON string from SQLite"
+    },
+    {
+      "bug": "Stampa bozza crash - snapshot type error",
+      "root_cause": "snapshot object passed directly to Prisma create instead of string",
+      "fix_location": "src/app/api/versioni/route.ts line 130",
+      "fix": "JSON.stringify(snapshot) wraps object before saving"
+    }
+  ]
+}

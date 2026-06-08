@@ -21,6 +21,8 @@ model Evento {
   struttura        Json?
   dateProposte     Json?
   disposizioneSala Json?
+  disposizioneSalaPianoB Json?
+  pianoAttivo      String?
   
   // Campi report aziendale
   luogo            String?
@@ -29,6 +31,11 @@ model Evento {
   menuBuffet       String?
   sposa            String?
   sposo            String?
+  // Data primo contatto commerciale
+  dataPrimoContatto    DateTime?
+  canalePrimoContatto  String?
+  appuntamentoOrigineId Int?
+  gcalEventId      String?
   
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -36,6 +43,11 @@ model Evento {
   clienti          EventoCliente[]
   versioni         VersioneEvento[]
   overrideLogs     OverrideLog[]
+  appuntamentoOrigine Appuntamento? @relation("EventoDaAppuntamento", fields: [appuntamentoOrigineId], references: [id], onDelete: SetNull)
+
+  @@index([dataConfermata])
+  @@index([stato])
+  @@index([gcalEventId])
 }
 
 // Versione evento - snapshot anti-contestazione
@@ -85,15 +97,167 @@ model MenuBase {
 
 // Modello per i clienti
 model Cliente {
-  id        Int              @id @default(autoincrement())
-  nome      String
-  cognome   String?
-  email     String?
-  telefono  String?
-  createdAt DateTime         @default(now())
-  updatedAt DateTime         @updatedAt
+  id                      Int              @id @default(autoincrement())
+  nome                    String
+  cognome                 String?
+  email                   String?
+  telefono                String?
+  telefonoAlt             String?
+  indirizzo               String?
+  cap                     String?
+  citta                   String?
+  dataNascita             DateTime?
+  codiceFiscale           String?
+  // Classificazione commerciale
+  tipoCliente             String?          // sposa, sposo, festeggiato, azienda, altro
+  canalePrimoContatto     String?          // web, passaparola, fiera, social, altro
+  dataPrimoContatto       DateTime?        // data del 1° contatto → appare in calendario
+  isSpam                  Boolean          @default(false)
+  spamReason              String?
+  spamMarkedAt            DateTime?
+  // Secondo contatto (es. sposo se il contatto primario è la sposa)
+  secondoContattoNome     String?
+  secondoContattoTelefono String?
+  secondoContattoEmail    String?
+  // Note
+  notaAnagrafica          String?
+  createdAt               DateTime         @default(now())
+  updatedAt               DateTime         @updatedAt
 
   eventi    EventoCliente[]
+  appuntamentiPrincipali Appuntamento[]    @relation("ClientePrincipaleAppuntamenti")
+  appuntamenti          AppuntamentoCliente[]
+  interazioni           InterazioneCliente[]
+
+  @@index([email])
+}
+
+model User {
+  id           String               @id @default(cuid())
+  email        String               @unique
+  passwordHash String
+  role         String               @default("WORKER")
+  isActive     Boolean              @default(true)
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
+
+  appuntamentiGestiti Appuntamento[]      @relation("OperatoreAppuntamenti")
+  interazioniGestite  InterazioneCliente[]
+  auditLogs           AuditLog[]
+  presenzeRegistrate  PresenzaVilla[]     @relation("CreatedByPresenze")
+  googleCalendar      GoogleCalendarConfig? @relation("GoogleCalendarUser")
+}
+
+model PresenzaVilla {
+  id              Int       @id @default(autoincrement())
+  dataRiferimento DateTime
+  nome            String
+  cognome         String
+  azienda         String
+  orarioIngresso  String
+  orarioUscita    String
+  motivoVisita    String
+  mansioneSvolta  String
+  note            String?
+  meteo           String?
+  createdByUserId String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  createdByUser   User?     @relation("CreatedByPresenze", fields: [createdByUserId], references: [id], onDelete: SetNull)
+
+  @@index([dataRiferimento])
+  @@index([createdByUserId])
+}
+
+model Appuntamento {
+  id                  Int                 @id @default(autoincrement())
+  clientePrincipaleId Int
+  clientePrincipale   Cliente             @relation("ClientePrincipaleAppuntamenti", fields: [clientePrincipaleId], references: [id], onDelete: Cascade)
+
+  dataAppuntamento    DateTime
+  durataMinuti        Int?                @default(0)
+  esito               String?
+  riassuntoColloquio  String?
+  noteColloquio       String?
+  numeroProgressivo   Int?
+  statoFunnel         String?             @default("in_trattativa")
+  datiMancanti        String?
+
+  dateOpzionate       Json?
+  dataScadenzaOpzione DateTime?
+  extraUnlockFinoAl   DateTime?
+  statoOpzione        String?             @default("nessuna")
+
+  operatoreId         String?
+  operatore           User?               @relation("OperatoreAppuntamenti", fields: [operatoreId], references: [id], onDelete: SetNull)
+  gcalEventId         String?
+
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+
+  clienti             AppuntamentoCliente[]
+  interazioni         InterazioneCliente[]
+  eventi              Evento[]            @relation("EventoDaAppuntamento")
+
+  @@index([clientePrincipaleId])
+  @@index([dataAppuntamento])
+  @@index([statoFunnel])
+  @@index([gcalEventId])
+}
+
+model AppuntamentoCliente {
+  id             Int          @id @default(autoincrement())
+  appuntamentoId Int
+  clienteId      Int
+  ruolo          String?
+
+  appuntamento   Appuntamento @relation(fields: [appuntamentoId], references: [id], onDelete: Cascade)
+  cliente        Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+
+  @@index([appuntamentoId])
+  @@index([clienteId])
+  @@unique([appuntamentoId, clienteId])
+}
+
+model InterazioneCliente {
+  id               Int          @id @default(autoincrement())
+  clienteId        Int
+  appuntamentoId   Int?
+  tipo             String
+  durataMinuti     Int?         @default(0)
+  sintesi          String?
+  operatoreId      String?
+  dataInterazione  DateTime     @default(now())
+  createdAt        DateTime     @default(now())
+
+  cliente          Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  appuntamento     Appuntamento? @relation(fields: [appuntamentoId], references: [id], onDelete: SetNull)
+  operatore        User?        @relation(fields: [operatoreId], references: [id], onDelete: SetNull)
+
+  @@index([clienteId])
+  @@index([appuntamentoId])
+  @@index([dataInterazione])
+}
+
+model AuditLog {
+  id            String    @id @default(cuid())
+  entityType    String
+  entityId      String
+  action        String
+  changedFields Json?
+  oldValue      Json?
+  newValue      Json?
+  actorId       String?
+  actorRole     String?
+  actorEmail    String?
+  metadata      Json?
+  createdAt     DateTime  @default(now())
+
+  actor         User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@index([createdAt])
 }
 
 // Relazione N:N tra Evento e Cliente
@@ -103,4 +267,39 @@ model EventoCliente {
   eventoId   Int
   cliente    Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
   clienteId  Int
+
+  @@index([eventoId])
+  @@index([clienteId])
+}
+
+model GoogleCalendarConfig {
+  id              Int      @id @default(autoincrement())
+  userId          String   @unique
+  user            User     @relation("GoogleCalendarUser", fields: [userId], references: [id], onDelete: Cascade)
+  accessToken     String
+  refreshToken    String?
+  tokenExpiry     DateTime?
+  calendarId      String   @default("primary")
+  syncToken       String?
+  connectedAt     DateTime @default(now())
+  lastSyncAt      DateTime?
+  isActive        Boolean  @default(true)
+}
+
+model GoogleCalendarChange {
+  id              Int      @id @default(autoincrement())
+  gcalEventId     String
+  tipoRisorsa     String
+  risorsaId       Int?
+  tipoModifica    String
+  dettagli        String?
+  modificatoDa    String?
+  stato           String   @default("pending")
+  validatoDa      String?
+  validatoAt      DateTime?
+  createdAt       DateTime @default(now())
+
+  @@index([gcalEventId])
+  @@index([stato])
+  @@index([createdAt])
 }

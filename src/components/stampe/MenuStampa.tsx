@@ -4,7 +4,7 @@ import { useState } from 'react'
 import { FileText, Printer, Users, Settings, X, Download } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { Evento, VersioneEvento, TipoVersione } from '@/lib/types'
-import { generaPDFCliente, generaPDFOperativo, type WatermarkType } from '@/lib/stampa'
+import type { WatermarkType } from '@/lib/stampa'
 
 interface MenuStampaProps {
   evento: Evento
@@ -38,6 +38,7 @@ export default function MenuStampa({
         setVersioneCorrente(versione)
       }
       
+      const { generaPDFCliente } = await import('@/lib/stampa/pdf-cliente')
       generaPDFCliente(evento, {
         watermark,
         includiNote: true,
@@ -53,8 +54,9 @@ export default function MenuStampa({
   const handleStampaOperativo = async () => {
     setIsGenerating(true)
     try {
+      const { generaPDFOperativo } = await import('@/lib/stampa/pdf-operativo')
       generaPDFOperativo(evento, {
-        watermark: 'BOZZA', // Operativo è sempre bozza (uso interno)
+        watermark: 'BOZZA', // Operativo sempre in bozza (uso interno)
         includiNote: true,
         versioneNumero: versioneCorrente
       })
@@ -117,7 +119,7 @@ export default function MenuStampa({
           </div>
           {watermark !== 'BOZZA' && (
             <p className="text-xs text-amber-600 mt-2">
-              ⚠️ La stampa {watermark} creerà una versione ufficiale dell'evento
+              Attenzione: la stampa {watermark} creera una versione ufficiale dell'evento
             </p>
           )}
         </div>
@@ -136,10 +138,10 @@ export default function MenuStampa({
                   Documento contrattuale completo: copertina, menu, piantina, firme
                 </p>
                 <ul className="text-xs text-gray-400 mt-2 space-y-1">
-                  <li>• Copertina elegante con dettagli evento</li>
-                  <li>• Menu descrittivo per portata</li>
-                  <li>• Disposizione sala (senza varianti)</li>
-                  <li>• Pagina conferma e firme</li>
+                  <li>- Copertina elegante con dettagli evento</li>
+                  <li>- Menu descrittivo per portata</li>
+                  <li>- Disposizione sala (senza varianti)</li>
+                  <li>- Pagina conferma e firme</li>
                 </ul>
               </div>
             </div>
@@ -167,10 +169,10 @@ export default function MenuStampa({
                   Per lo staff: piantina con varianti, fogli servizio
                 </p>
                 <ul className="text-xs text-gray-400 mt-2 space-y-1">
-                  <li>• Riepilogo varianti alimentari</li>
-                  <li>• Piantina con dettaglio varianti per tavolo</li>
-                  <li>• Fogli servizio per ogni portata</li>
-                  <li>• Checkbox completamento</li>
+                  <li>- Riepilogo varianti alimentari</li>
+                  <li>- Piantina con dettaglio varianti per tavolo</li>
+                  <li>- Fogli servizio per ogni portata</li>
+                  <li>- Checkbox completamento</li>
                 </ul>
               </div>
             </div>
@@ -191,7 +193,7 @@ export default function MenuStampa({
         {/* Footer info */}
         <div className="px-6 py-3 bg-gray-50 border-t text-center">
           <p className="text-xs text-gray-500">
-            Revisione corrente: v{versioneCorrente} • {evento.titolo}
+            Revisione corrente: v{versioneCorrente} - {evento.titolo}
           </p>
         </div>
       </div>

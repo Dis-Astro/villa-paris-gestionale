@@ -24,6 +24,8 @@ export interface PDFMetadata {
   tipoEvento: string
   cliente: string
   personePreviste: number
+  prezzoPerPersona: number
+  totaleStimato: number
   dataOraStampa: string
   versione: number
   watermark: WatermarkType
@@ -62,8 +64,29 @@ export function formatDataOraStampa(): string {
 
 export function getClienteNome(evento: Evento): string {
   if (!evento.clienti || evento.clienti.length === 0) return 'Cliente'
-  const c = evento.clienti[0]
-  return `${c.nome} ${c.cognome}`
+  const raw = evento.clienti[0] as any
+  const c = raw?.cliente || raw
+  const nome = [c?.nome, c?.cognome].filter(Boolean).join(' ').trim()
+  return nome || (evento as any).sposa || 'Cliente'
+}
+
+function parseStruttura(raw: any): any {
+  if (!raw) return {}
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) } catch { return {} }
+  }
+  return raw
+}
+
+export function getPrezzoPerPersona(evento: Evento): number {
+  const prezzoEvento = Number((evento as any).prezzo)
+  if (Number.isFinite(prezzoEvento) && prezzoEvento > 0) return prezzoEvento
+
+  const struttura = parseStruttura((evento as any).struttura)
+  const prezzoStruttura = Number(struttura?.prezzo)
+  if (Number.isFinite(prezzoStruttura) && prezzoStruttura > 0) return prezzoStruttura
+
+  return 0
 }
 
 export function getTipoEventoLabel(tipo: string): string {
@@ -81,12 +104,17 @@ export function getTipoEventoLabel(tipo: string): string {
 }
 
 export function buildMetadata(evento: Evento, options: StampaOptions): PDFMetadata {
+  const personePreviste = evento.personePreviste || 0
+  const prezzoPerPersona = getPrezzoPerPersona(evento)
+
   return {
     titoloEvento: evento.titolo,
     dataEvento: formatDataEvento(evento.dataConfermata),
     tipoEvento: getTipoEventoLabel(evento.tipo),
     cliente: getClienteNome(evento),
-    personePreviste: evento.personePreviste || 0,
+    personePreviste,
+    prezzoPerPersona,
+    totaleStimato: personePreviste * prezzoPerPersona,
     dataOraStampa: formatDataOraStampa(),
     versione: options.versioneNumero || 1,
     watermark: options.watermark
