@@ -273,6 +273,7 @@ model GoogleCalendarImport {
   iCalUID          String?
   tipoRisorsa      String
   risorsaId        Int?
+  createdResource  Boolean  @default(false)
   stato            String   @default("imported")
   confidence       Float    @default(0)
   fingerprint      String?
@@ -288,6 +289,21 @@ model GoogleCalendarImport {
   @@index([stato])
   @@index([iCalUID])
   @@index([lastImportedAt])
+}
+
+model AiConfiguration {
+  id                  Int      @id @default(autoincrement())
+  provider            String   @default("openai")
+  model               String   @default("gpt-5.6-terra")
+  baseUrl             String   @default("https://api.openai.com/v1")
+  apiKeyEncrypted     String?
+  enabled             Boolean  @default(false)
+  autoApply           Boolean  @default(false)
+  minConfidence       Float    @default(0.9)
+  includePersonalData Boolean  @default(false)
+  updatedBy           String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 }
 
 model AiOperation {

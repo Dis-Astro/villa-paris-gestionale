@@ -56,6 +56,9 @@ export default function ImpostazioniPage() {
   const [gcalChanges, setGcalChanges] = useState<GCalChange[]>([])
   const [gcalImportReview, setGcalImportReview] = useState<any[]>([])
   const [gcalImportTotal, setGcalImportTotal] = useState(0)
+  const [gcalImportReviewTotal, setGcalImportReviewTotal] = useState(0)
+  const [rollbackPreview, setRollbackPreview] = useState<any>(null)
+  const [rollbackLoading, setRollbackLoading] = useState(false)
   const [gcalLoading, setGcalLoading] = useState(false)
   const [gcalSyncing, setGcalSyncing] = useState(false)
   const [gcalChecking, setGcalChecking] = useState(false)
@@ -66,6 +69,16 @@ export default function ImpostazioniPage() {
   const [aiOperations, setAiOperations] = useState<any[]>([])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState('')
+  const [aiForm, setAiForm] = useState({
+    provider: 'openai',
+    model: 'gpt-5.6-terra',
+    baseUrl: 'https://api.openai.com/v1',
+    apiKey: '',
+    enabled: false,
+    autoApply: false,
+    minConfidence: 0.9,
+    includePersonalData: false
+  })
 
   // Load settings and role
   useEffect(() => {
@@ -108,6 +121,7 @@ export default function ImpostazioniPage() {
         setGcalChanges(data.pendingChanges || [])
         setGcalImportReview(data.imports?.review || [])
         setGcalImportTotal(data.imports?.total || 0)
+        setGcalImportReviewTotal(data.imports?.reviewTotal || 0)
       }
     } catch { /* ignore */ } finally {
       setGcalLoading(false)
@@ -138,7 +152,96 @@ export default function ImpostazioniPage() {
       const data = await res.json()
       setAiConfig(data.config)
       setAiOperations(data.operations || [])
+      if (data.config) {
+        setAiForm((current) => ({
+          ...current,
+          provider: data.config.provider || 'openai',
+          model: data.config.model || 'gpt-5.6-terra',
+          baseUrl: data.config.baseUrl || 'https://api.openai.com/v1',
+          enabled: data.config.enabled === true,
+          autoApply: data.config.autoApply === true,
+          minConfidence: Number(data.config.minConfidence ?? 0.9),
+          includePersonalData: data.config.includePersonalData === true
+        }))
+      }
     } catch { /* ignore */ }
+  }
+
+  const handleSaveAI = async () => {
+    setAiLoading(true)
+    setAiStatus('')
+    try {
+      const res = await fetch('/api/ai/config', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(aiForm)
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setAiForm((current) => ({ ...current, apiKey: '' }))
+      setAiStatus('Configurazione AI salvata in modo sicuro')
+      await fetchAIStatus()
+    } catch (error: any) {
+      setAiStatus(`Errore: ${error.message || 'salvataggio AI non riuscito'}`)
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const handleTestAI = async () => {
+    setAiLoading(true)
+    setAiStatus('')
+    try {
+      const res = await fetch('/api/ai/config', { method: 'POST' })
+      const data = await res.json()
+      setAiStatus(res.ok ? data.message : `Errore: ${data.error}`)
+    } catch {
+      setAiStatus('Errore: test connessione AI non riuscito')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const handleRollbackPreview = async () => {
+    setRollbackLoading(true)
+    setGcalStatus('')
+    try {
+      const res = await fetch('/api/google-calendar/rollback-import')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setRollbackPreview(data)
+    } catch (error: any) {
+      setGcalStatus(`Errore: ${error.message || 'anteprima ripristino non riuscita'}`)
+    } finally {
+      setRollbackLoading(false)
+    }
+  }
+
+  const handleRollback = async () => {
+    const phrase = window.prompt(
+      'Questa operazione rimuove solo i record creati dall’importazione errata. Digita ROLLBACK_GOOGLE_IMPORT per confermare.'
+    )
+    if (phrase !== 'ROLLBACK_GOOGLE_IMPORT') return
+    setRollbackLoading(true)
+    try {
+      const res = await fetch('/api/google-calendar/rollback-import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirm: phrase })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setGcalStatus(
+        `Ripristino completato: rimossi ${data.removed.eventi} eventi, ` +
+        `${data.removed.appuntamenti} appuntamenti e ${data.removed.clienti} contatti importati`
+      )
+      setRollbackPreview(null)
+      await fetchGcalStatus()
+    } catch (error: any) {
+      setGcalStatus(`Errore: ${error.message || 'ripristino non riuscito'}`)
+    } finally {
+      setRollbackLoading(false)
+    }
   }
 
   const handleRunAI = async () => {
@@ -400,7 +503,37 @@ export default function ImpostazioniPage() {
                     <AlertTriangle className={`w-4 h-4 mr-2 ${gcalChecking ? 'animate-spin' : ''}`} />
                     {gcalChecking ? 'Controllo...' : 'Controlla modifiche esterne'}
                   </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleRollbackPreview}
+                    disabled={rollbackLoading}
+                    className="text-amber-700 border-amber-300"
+                  >
+                    <Shield className="w-4 h-4 mr-2" />
+                    {rollbackLoading ? 'Analisi...' : 'Analizza importazione errata'}
+                  </Button>
                 </div>
+
+                {rollbackPreview && (
+                  <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm">
+                    <p className="font-medium text-red-900">Anteprima ripristino — nessun dato è stato ancora eliminato</p>
+                    <div className="mt-2 grid grid-cols-2 gap-2 text-red-800 sm:grid-cols-4">
+                      <span>Eventi: {rollbackPreview.eventiDaRimuovere}</span>
+                      <span>Appuntamenti: {rollbackPreview.appuntamentiDaRimuovere}</span>
+                      <span>Contatti: {rollbackPreview.clientiDaRimuovere}</span>
+                      <span>Record preservati: {rollbackPreview.preservedLinkedResources}</span>
+                    </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRollback}
+                      disabled={rollbackLoading}
+                      className="mt-3 border-red-300 text-red-700 hover:bg-red-100"
+                    >
+                      Conferma ripristino controllato
+                    </Button>
+                  </div>
+                )}
 
                 {/* Sync result */}
                 {syncResult && (
@@ -432,7 +565,7 @@ export default function ImpostazioniPage() {
                   </p>
                   {gcalImportTotal > 0 && (
                     <p className="mt-2 font-medium">
-                      {gcalImportTotal} voci Google acquisite · {gcalImportReview.length} da verificare
+                      {gcalImportTotal} voci Google acquisite · {gcalImportReviewTotal} da verificare
                     </p>
                   )}
                 </div>
@@ -440,7 +573,7 @@ export default function ImpostazioniPage() {
                   <div className="space-y-2" data-testid="gcal-import-review-list">
                     <h4 className="font-medium text-gray-900 flex items-center gap-2">
                       <AlertTriangle className="w-4 h-4 text-amber-500" />
-                      Importazioni da verificare ({gcalImportReview.length})
+                      Importazioni da verificare ({gcalImportReviewTotal}; ultime {gcalImportReview.length} mostrate)
                     </h4>
                     {gcalImportReview.map((item) => (
                       <div key={item.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
@@ -566,7 +699,7 @@ export default function ImpostazioniPage() {
                     </p>
                   ) : (
                     <p className="text-xs text-amber-800 mt-1">
-                      Configura AI_ENABLED=true e AI_API_KEY nel file ambiente del server.
+                      Inserisci qui sotto la chiave API e abilita la connessione.
                     </p>
                   )}
                 </div>
@@ -577,6 +710,97 @@ export default function ImpostazioniPage() {
                 >
                   <Play className="w-4 h-4 mr-2" />
                   {aiLoading ? 'Analisi in corso...' : 'Analizza dati pendenti'}
+                </Button>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-violet-100 p-4 space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Provider</label>
+                  <Input
+                    value={aiForm.provider}
+                    onChange={(event) => setAiForm({ ...aiForm, provider: event.target.value })}
+                    placeholder="openai"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Modello</label>
+                  <Input
+                    value={aiForm.model}
+                    onChange={(event) => setAiForm({ ...aiForm, model: event.target.value })}
+                    placeholder="gpt-5.6-terra"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">Indirizzo API</label>
+                  <Input
+                    value={aiForm.baseUrl}
+                    onChange={(event) => setAiForm({ ...aiForm, baseUrl: event.target.value })}
+                    placeholder="https://api.openai.com/v1"
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Chiave API {aiConfig?.hasApiKey && '(già salvata; lascia vuoto per mantenerla)'}
+                  </label>
+                  <Input
+                    type="password"
+                    autoComplete="new-password"
+                    value={aiForm.apiKey}
+                    onChange={(event) => setAiForm({ ...aiForm, apiKey: event.target.value })}
+                    placeholder={aiConfig?.hasApiKey ? '••••••••••••••••' : 'sk-...'}
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-sm font-medium text-gray-700">
+                    Soglia applicazione automatica: {Math.round(aiForm.minConfidence * 100)}%
+                  </label>
+                  <Input
+                    type="number"
+                    min="0.5"
+                    max="1"
+                    step="0.01"
+                    value={aiForm.minConfidence}
+                    onChange={(event) => setAiForm({ ...aiForm, minConfidence: Number(event.target.value) })}
+                  />
+                </div>
+                <div className="space-y-2 pt-1 text-sm">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={aiForm.enabled}
+                      onChange={(event) => setAiForm({ ...aiForm, enabled: event.target.checked })}
+                    />
+                    Abilita connessione AI
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={aiForm.autoApply}
+                      onChange={(event) => setAiForm({ ...aiForm, autoApply: event.target.checked })}
+                    />
+                    Applica automaticamente sopra soglia
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={aiForm.includePersonalData}
+                      onChange={(event) => setAiForm({ ...aiForm, includePersonalData: event.target.checked })}
+                    />
+                    Invia all’AI anche email e telefoni
+                  </label>
+                </div>
+              </div>
+              <p className="text-xs text-gray-500">
+                La chiave viene cifrata sul server. Per prudenza l’applicazione automatica resta disattivata finché non la abiliti.
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={handleSaveAI} disabled={aiLoading} className="bg-violet-600 hover:bg-violet-700">
+                  <Save className="w-4 h-4 mr-2" /> Salva connessione AI
+                </Button>
+                <Button variant="outline" onClick={handleTestAI} disabled={aiLoading || !aiConfig?.configured}>
+                  <Play className="w-4 h-4 mr-2" /> Prova connessione
                 </Button>
               </div>
             </div>

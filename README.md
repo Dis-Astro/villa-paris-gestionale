@@ -69,6 +69,7 @@ COOKIE_SECURE="true"
 | `CALENDAR_SYNC_SECRET` | Token Bearer per l’importazione automatica Google Calendar |
 | `CALENDAR_SYNC_INTERVAL_SECONDS` | Frequenza del controllo automatico, predefinita a 300 secondi |
 | `AI_ENABLED` | Abilita l’analisi AI server-side |
+| `AI_CONFIG_ENCRYPTION_KEY` | Segreto per cifrare la chiave AI salvata dal pannello; se assente usa `JWT_SECRET` |
 | `AI_API_KEY` | Chiave del provider AI, mai esposta al browser |
 | `AI_BASE_URL` | Endpoint Responses API; predefinito OpenAI |
 | `AI_MODEL` | Modello usato per analisi e correzioni |
@@ -95,13 +96,22 @@ GET https://tuo-dominio.it/api/google-calendar/import
 Authorization: Bearer valore_di_CALENDAR_SYNC_SECRET
 ```
 
+Con PM2 puoi mantenere attivo lo stesso controllo come processo separato:
+
+```bash
+pm2 start npm --name villa-calendar-sync -- run start:calendar-sync
+pm2 save
+```
+
 La prima esecuzione legge tutto il calendario; le successive usano il sync token
 incrementale di Google. Per forzare una nuova scansione completa usa `?full=1`.
 
 ## Controllore AI dei dati
 
 Il gestionale supporta la Responses API di OpenAI e provider compatibili configurabili
-tramite `AI_BASE_URL`. L’AI analizza ogni nuova importazione Calendar, completa i campi
+dalla schermata **Impostazioni > Controllore AI** oppure tramite variabili ambiente.
+La chiave salvata dall’interfaccia viene cifrata sul server e non viene mai restituita
+al browser. L’AI analizza ogni nuova importazione Calendar, completa i campi
 ricavabili, segnala contraddizioni e propone correzioni. Non riceve accesso diretto al
 database: restituisce un output JSON vincolato e il server applica esclusivamente una
 lista consentita di campi.

@@ -3,10 +3,10 @@ import { requireAuth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import {
   analyzeCalendarImportWithAI,
-  getAIConfig,
   processPendingAIEnhancements,
   reviewAIOperation
 } from '@/lib/ai-service'
+import { getAIConfig, safeAIConfig } from '@/lib/ai-config'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -15,7 +15,7 @@ export const maxDuration = 300
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN'])
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
-  const config = getAIConfig()
+  const config = await getAIConfig()
   const [operations, pendingReview, failed] = await Promise.all([
     prisma.aiOperation.findMany({
       orderBy: { createdAt: 'desc' },
@@ -41,15 +41,7 @@ export async function GET(req: NextRequest) {
     prisma.aiOperation.count({ where: { status: 'failed' } })
   ])
   return NextResponse.json({
-    config: {
-      enabled: config.enabled,
-      configured: config.configured,
-      provider: config.provider,
-      model: config.model,
-      autoApply: config.autoApply,
-      minConfidence: config.minConfidence,
-      includePersonalData: config.includePersonalData
-    },
+    config: safeAIConfig(config),
     summary: { pendingReview, failed },
     operations
   })

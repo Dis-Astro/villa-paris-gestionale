@@ -30,6 +30,7 @@ export type ParsedGoogleEvent = {
 export type GoogleImportResult = {
   letti: number
   importati: number
+  registrati: number
   aggiornati: number
   cancellati: number
   invariati: number
@@ -314,6 +315,49 @@ async function importOne(event: GoogleEvent) {
     ? previous.tipoRisorsa as ResourceType
     : existingType || parsed.tipoRisorsa
   let risorsaId = previous?.risorsaId || linkedEvento?.id || linkedAppuntamento?.id || null
+  let createdResource = previous?.createdResource || false
+  const hasOperationalIdentity = parsed.tipoRisorsa === 'evento' || Boolean(parsed.cliente)
+  const shouldMaterialize = Boolean(
+    risorsaId || existingType || (parsed.confidence >= 0.8 && hasOperationalIdentity)
+  )
+
+  if (!shouldMaterialize) {
+    const warning = parsed.warning || 'Voce archiviata senza creare record operativo: classificazione incerta'
+    await prisma.googleCalendarImport.upsert({
+      where: { gcalEventId: event.id },
+      create: {
+        gcalEventId: event.id,
+        recurringEventId: event.recurringEventId || null,
+        iCalUID: event.iCalUID || null,
+        tipoRisorsa: parsed.tipoRisorsa,
+        risorsaId: null,
+        createdResource: false,
+        stato: 'review',
+        confidence: parsed.confidence,
+        fingerprint: nextFingerprint,
+        rawData: JSON.stringify(event),
+        warning,
+        aiStatus: 'pending'
+      },
+      update: {
+        recurringEventId: event.recurringEventId || null,
+        iCalUID: event.iCalUID || null,
+        tipoRisorsa: parsed.tipoRisorsa,
+        risorsaId: null,
+        createdResource: false,
+        stato: 'review',
+        confidence: parsed.confidence,
+        fingerprint: nextFingerprint,
+        rawData: JSON.stringify(event),
+        warning,
+        aiStatus: 'pending',
+        aiAnalyzedAt: null,
+        lastImportedAt: new Date(),
+        deletedAt: null
+      }
+    })
+    return previous ? 'aggiornato' as const : 'registrato' as const
+  }
 
   if (tipoRisorsa === 'evento') {
     const data = {
@@ -332,15 +376,14 @@ async function importOne(event: GoogleEvent) {
     } else {
       const created = await prisma.evento.create({ data })
       risorsaId = created.id
+      createdResource = true
       if (parsed.cliente) {
         const cliente = await findOrCreateCliente(parsed, event)
         await prisma.eventoCliente.create({ data: { eventoId: created.id, clienteId: cliente.id } })
       }
     }
   } else {
-    const cliente = await findOrCreateCliente(parsed, event)
     const data = {
-      clientePrincipaleId: cliente.id,
       dataAppuntamento: parsed.dataInizio,
       durataMinuti: parsed.durataMinuti || 60,
       noteColloquio: parsed.note,
@@ -351,8 +394,15 @@ async function importOne(event: GoogleEvent) {
     if (risorsaId) {
       await prisma.appuntamento.update({ where: { id: risorsaId }, data })
     } else {
-      const created = await prisma.appuntamento.create({ data })
+      if (!parsed.cliente) {
+        throw new Error('Contatto obbligatorio per creare un appuntamento')
+      }
+      const cliente = await findOrCreateCliente(parsed, event)
+      const created = await prisma.appuntamento.create({
+        data: { ...data, clientePrincipaleId: cliente.id }
+      })
       risorsaId = created.id
+      createdResource = true
       await prisma.appuntamentoCliente.create({
         data: { appuntamentoId: created.id, clienteId: cliente.id }
       })
@@ -377,6 +427,7 @@ async function importOne(event: GoogleEvent) {
       iCalUID: event.iCalUID || null,
       tipoRisorsa,
       risorsaId,
+      createdResource,
       stato: parsed.warning ? 'review' : 'imported',
       confidence: parsed.confidence,
       fingerprint: nextFingerprint,
@@ -389,6 +440,7 @@ async function importOne(event: GoogleEvent) {
       iCalUID: event.iCalUID || null,
       tipoRisorsa,
       risorsaId,
+      createdResource,
       stato: parsed.warning ? 'review' : 'imported',
       confidence: parsed.confidence,
       fingerprint: nextFingerprint,
@@ -414,6 +466,7 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
   const result: GoogleImportResult = {
     letti: 0,
     importati: 0,
+    registrati: 0,
     aggiornati: 0,
     cancellati: 0,
     invariati: 0,
@@ -454,6 +507,7 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
       try {
         const outcome = await importOne(event)
         if (outcome === 'importato') result.importati++
+        else if (outcome === 'registrato') result.registrati++
         else if (outcome === 'aggiornato') result.aggiornati++
         else if (outcome === 'cancellato') result.cancellati++
         else result.invariati++

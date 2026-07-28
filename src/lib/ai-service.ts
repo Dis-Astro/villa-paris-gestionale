@@ -1,16 +1,5 @@
 import prisma from '@/lib/prisma'
-
-type AIConfig = {
-  enabled: boolean
-  configured: boolean
-  provider: string
-  model: string
-  baseUrl: string
-  apiKey: string | null
-  autoApply: boolean
-  minConfidence: number
-  includePersonalData: boolean
-}
+import { getAIConfig, type AIConfig } from '@/lib/ai-config'
 
 type AIAnalysis = {
   resourceType: 'evento' | 'appuntamento'
@@ -32,23 +21,6 @@ type AIAnalysis = {
     customerSurname: string | null
     customerEmail: string | null
     customerPhone: string | null
-  }
-}
-
-export function getAIConfig(): AIConfig {
-  const apiKey = process.env.AI_API_KEY || process.env.OPENAI_API_KEY || null
-  const enabled = process.env.AI_ENABLED === 'true'
-  const threshold = Number(process.env.AI_MIN_CONFIDENCE || '0.9')
-  return {
-    enabled,
-    configured: enabled && Boolean(apiKey),
-    provider: process.env.AI_PROVIDER || 'openai',
-    model: process.env.AI_MODEL || 'gpt-5.6-terra',
-    baseUrl: (process.env.AI_BASE_URL || 'https://api.openai.com/v1').replace(/\/+$/, ''),
-    apiKey,
-    autoApply: process.env.AI_AUTO_APPLY === 'true',
-    minConfidence: Number.isFinite(threshold) ? Math.min(1, Math.max(0, threshold)) : 0.9,
-    includePersonalData: process.env.AI_INCLUDE_PERSONAL_DATA === 'true'
   }
 }
 
@@ -174,12 +146,110 @@ async function currentResource(imported: any) {
   return null
 }
 
+async function findOrCreateAICliente(fields: AIAnalysis['fields'], startDate: Date) {
+  const email = fields.customerEmail?.trim().toLowerCase() || null
+  const phone = fields.customerPhone?.trim() || null
+  const name = fields.customerName?.trim() || null
+  const surname = fields.customerSurname?.trim() || null
+  if (!name && !surname && !email && !phone) return null
+
+  if (email) {
+    const existing = await prisma.cliente.findFirst({ where: { email } })
+    if (existing) return existing
+  }
+  if (phone) {
+    const existing = await prisma.cliente.findFirst({ where: { telefono: phone } })
+    if (existing) return existing
+  }
+  if (name) {
+    const existing = await prisma.cliente.findFirst({ where: { nome: name, cognome: surname } })
+    if (existing) return existing
+  }
+  return prisma.cliente.create({
+    data: {
+      nome: name || surname || email || phone!,
+      cognome: name ? surname : null,
+      email,
+      telefono: phone,
+      dataPrimoContatto: startDate,
+      canalePrimoContatto: 'google_calendar',
+      notaAnagrafica: 'Creato da una classificazione AI approvata su dati Google Calendar'
+    }
+  })
+}
+
 async function applyAnalysis(imported: any, analysis: AIAnalysis) {
   const fields = analysis.fields
   const applied: Record<string, unknown> = {}
   const startDate = validDate(fields.startDate)
+  let tipoRisorsa = imported.tipoRisorsa
+  let risorsaId = imported.risorsaId
 
-  if (imported.tipoRisorsa === 'evento' && imported.risorsaId) {
+  if (!risorsaId && analysis.resourceType === 'evento') {
+    if (!fields.title || !startDate) {
+      throw new Error('Per creare un evento servono almeno titolo e data espliciti')
+    }
+    const created = await prisma.evento.create({
+      data: {
+        titolo: fields.title.trim(),
+        tipo: fields.eventType?.trim().toLowerCase() || 'altro',
+        dataConfermata: startDate,
+        fascia: fields.fascia?.trim() || 'da_definire',
+        stato: fields.status?.trim().toLowerCase().replace(/\s+/g, '_') || 'in_attesa',
+        personePreviste: fields.guestCount,
+        note: fields.notes?.trim() || null,
+        luogo: fields.location?.trim() || null,
+        gcalEventId: imported.gcalEventId
+      }
+    })
+    tipoRisorsa = 'evento'
+    risorsaId = created.id
+    applied.created = { tipoRisorsa, risorsaId }
+  } else if (!risorsaId && analysis.resourceType === 'appuntamento') {
+    if (!startDate) throw new Error('Per creare un appuntamento serve una data esplicita')
+    const cliente = await findOrCreateAICliente(fields, startDate)
+    if (!cliente) {
+      throw new Error('Per creare un appuntamento serve un contatto esplicito (nome, email o telefono)')
+    }
+    const created = await prisma.appuntamento.create({
+      data: {
+        clientePrincipaleId: cliente.id,
+        dataAppuntamento: startDate,
+        durataMinuti: fields.durationMinutes ?? 60,
+        noteColloquio: fields.notes?.trim() || null,
+        riassuntoColloquio: fields.title?.trim() || null,
+        statoFunnel: fields.status?.trim().toLowerCase().replace(/\s+/g, '_') || 'in_trattativa',
+        gcalEventId: imported.gcalEventId,
+        clienti: { create: { clienteId: cliente.id } },
+        interazioni: {
+          create: {
+            clienteId: cliente.id,
+            tipo: 'appuntamento',
+            durataMinuti: fields.durationMinutes ?? 60,
+            sintesi: fields.notes?.trim() || fields.title?.trim() || null,
+            dataInterazione: startDate
+          }
+        }
+      }
+    })
+    tipoRisorsa = 'appuntamento'
+    risorsaId = created.id
+    applied.created = { tipoRisorsa, risorsaId, clienteId: cliente.id }
+  }
+
+  if (!imported.risorsaId && risorsaId) {
+    await prisma.googleCalendarImport.update({
+      where: { id: imported.id },
+      data: {
+        tipoRisorsa,
+        risorsaId,
+        createdResource: true,
+        stato: 'imported'
+      }
+    })
+  }
+
+  if (tipoRisorsa === 'evento' && risorsaId) {
     const data: any = {}
     if (fields.title) data.titolo = applied.titolo = fields.title.trim()
     if (fields.eventType) data.tipo = applied.tipo = fields.eventType.trim().toLowerCase()
@@ -190,9 +260,9 @@ async function applyAnalysis(imported: any, analysis: AIAnalysis) {
     if (fields.notes) data.note = applied.note = fields.notes.trim()
     if (fields.location) data.luogo = applied.luogo = fields.location.trim()
     if (Object.keys(data).length) {
-      await prisma.evento.update({ where: { id: imported.risorsaId }, data })
+      await prisma.evento.update({ where: { id: risorsaId }, data })
     }
-  } else if (imported.tipoRisorsa === 'appuntamento' && imported.risorsaId) {
+  } else if (tipoRisorsa === 'appuntamento' && risorsaId) {
     const data: any = {}
     if (startDate) data.dataAppuntamento = applied.dataAppuntamento = startDate
     if (fields.durationMinutes !== null) data.durataMinuti = applied.durataMinuti = fields.durationMinutes
@@ -200,17 +270,17 @@ async function applyAnalysis(imported: any, analysis: AIAnalysis) {
     if (fields.title) data.riassuntoColloquio = applied.riassuntoColloquio = fields.title.trim()
     if (fields.status) data.statoFunnel = applied.statoFunnel = fields.status.trim().toLowerCase().replace(/\s+/g, '_')
     if (Object.keys(data).length) {
-      await prisma.appuntamento.update({ where: { id: imported.risorsaId }, data })
+      await prisma.appuntamento.update({ where: { id: risorsaId }, data })
     }
   }
 
-  if (imported.risorsaId && (
+  if (risorsaId && (
     fields.customerName || fields.customerSurname || fields.customerEmail || fields.customerPhone
   )) {
-    const cliente = imported.tipoRisorsa === 'evento'
-      ? await prisma.eventoCliente.findFirst({ where: { eventoId: imported.risorsaId } })
+    const cliente = tipoRisorsa === 'evento'
+      ? await prisma.eventoCliente.findFirst({ where: { eventoId: risorsaId } })
       : await prisma.appuntamento.findUnique({
-          where: { id: imported.risorsaId },
+          where: { id: risorsaId },
           select: { clientePrincipaleId: true }
         })
     const clienteId = cliente && ('clienteId' in cliente ? cliente.clienteId : cliente.clientePrincipaleId)
@@ -231,7 +301,7 @@ export async function analyzeCalendarImportWithAI(
   importId: number,
   options: { autoApply?: boolean } = {}
 ) {
-  const config = getAIConfig()
+  const config = await getAIConfig()
   if (!config.configured) throw new Error('Connessione AI non configurata o disabilitata')
   const imported = await prisma.googleCalendarImport.findUnique({ where: { id: importId } })
   if (!imported) throw new Error('Importazione Google Calendar non trovata')
@@ -261,7 +331,7 @@ export async function analyzeCalendarImportWithAI(
     const canApply = (
       (options.autoApply ?? config.autoApply) &&
       parsed.shouldApply &&
-      parsed.resourceType === imported.tipoRisorsa &&
+      (!imported.risorsaId || parsed.resourceType === imported.tipoRisorsa) &&
       parsed.confidence >= config.minConfidence
     )
     const proposedChanges = parsed.fields
@@ -275,6 +345,7 @@ export async function analyzeCalendarImportWithAI(
           status,
           outputData: JSON.stringify({
             responseId: raw.id || null,
+            resourceType: parsed.resourceType,
             summary: parsed.reasoningSummary,
             warnings: parsed.warnings
           }),
@@ -315,7 +386,7 @@ let activeBatch: Promise<any> | null = null
 export function processPendingAIEnhancements(limit = Number(process.env.AI_BATCH_SIZE || '10')) {
   if (activeBatch) return activeBatch
   activeBatch = (async () => {
-    const config = getAIConfig()
+    const config = await getAIConfig()
     if (!config.configured) return { configured: false, processed: 0, applied: 0, review: 0, failed: 0 }
     const pending = await prisma.googleCalendarImport.findMany({
       where: {
@@ -375,8 +446,11 @@ export async function reviewAIOperation(operationId: string, apply: boolean, rev
   })
   if (!imported) throw new Error('Importazione collegata non trovata')
   const fields = JSON.parse(operation.proposedChanges || '{}') as AIAnalysis['fields']
+  const output = JSON.parse(operation.outputData || '{}')
   const analysis: AIAnalysis = {
-    resourceType: imported.tipoRisorsa as 'evento' | 'appuntamento',
+    resourceType: output.resourceType === 'evento' || output.resourceType === 'appuntamento'
+      ? output.resourceType
+      : imported.tipoRisorsa as 'evento' | 'appuntamento',
     confidence: operation.confidence || 0,
     shouldApply: true,
     reasoningSummary: 'Applicazione approvata manualmente',

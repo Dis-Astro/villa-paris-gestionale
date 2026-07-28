@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const config = await getActiveConfig()
-    const [pendingChanges, importReview, importTotal] = await Promise.all([
+    const [pendingChanges, importReview, importTotal, importReviewTotal] = await Promise.all([
       prisma.googleCalendarChange.findMany({
         where: { stato: 'pending' },
         orderBy: { createdAt: 'desc' },
@@ -43,7 +43,8 @@ export async function GET(req: NextRequest) {
           lastImportedAt: true
         }
       }),
-      prisma.googleCalendarImport.count()
+      prisma.googleCalendarImport.count(),
+      prisma.googleCalendarImport.count({ where: { stato: 'review' } })
     ])
 
     return NextResponse.json({
@@ -55,7 +56,7 @@ export async function GET(req: NextRequest) {
         userEmail: config.user?.email
       } : null,
       pendingChanges,
-      imports: { total: importTotal, review: importReview }
+      imports: { total: importTotal, reviewTotal: importReviewTotal, review: importReview }
     })
   } catch (error: any) {
     console.error('Errore status GCal:', error)
