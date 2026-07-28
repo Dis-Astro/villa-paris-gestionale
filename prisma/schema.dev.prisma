@@ -266,6 +266,55 @@ model GoogleCalendarConfig {
   isActive        Boolean  @default(true)
 }
 
+model GoogleCalendarImport {
+  id               Int      @id @default(autoincrement())
+  gcalEventId      String   @unique
+  recurringEventId String?
+  iCalUID          String?
+  tipoRisorsa      String
+  risorsaId        Int?
+  stato            String   @default("imported")
+  confidence       Float    @default(0)
+  fingerprint      String?
+  rawData          String
+  warning          String?
+  aiStatus         String?   @default("pending")
+  aiAnalyzedAt     DateTime?
+  firstImportedAt  DateTime @default(now())
+  lastImportedAt   DateTime @default(now())
+  deletedAt        DateTime?
+
+  @@index([tipoRisorsa, risorsaId])
+  @@index([stato])
+  @@index([iCalUID])
+  @@index([lastImportedAt])
+}
+
+model AiOperation {
+  id              String    @id @default(cuid())
+  sourceType      String
+  sourceId        String?
+  operationType   String
+  status          String    @default("pending")
+  provider        String
+  model           String
+  inputData       String?
+  outputData      String?
+  proposedChanges String?
+  appliedChanges  String?
+  confidence      Float?
+  requiresReview  Boolean   @default(true)
+  error           String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  @@index([sourceType, sourceId])
+  @@index([status])
+  @@index([createdAt])
+}
+
 model GoogleCalendarChange {
   id              Int      @id @default(autoincrement())
   gcalEventId     String

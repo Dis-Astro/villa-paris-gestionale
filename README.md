@@ -66,6 +66,59 @@ COOKIE_SECURE="true"
 | `NEXT_PUBLIC_APP_URL` | URL pubblico dell'app |
 | `GOOGLE_CLIENT_ID` | Opzionale, OAuth Google Calendar |
 | `GOOGLE_CLIENT_SECRET` | Opzionale, OAuth Google Calendar |
+| `CALENDAR_SYNC_SECRET` | Token Bearer per l’importazione automatica Google Calendar |
+| `CALENDAR_SYNC_INTERVAL_SECONDS` | Frequenza del controllo automatico, predefinita a 300 secondi |
+| `AI_ENABLED` | Abilita l’analisi AI server-side |
+| `AI_API_KEY` | Chiave del provider AI, mai esposta al browser |
+| `AI_BASE_URL` | Endpoint Responses API; predefinito OpenAI |
+| `AI_MODEL` | Modello usato per analisi e correzioni |
+| `AI_AUTO_APPLY` | Applica automaticamente solo correzioni sopra soglia |
+| `AI_MIN_CONFIDENCE` | Soglia di applicazione automatica, predefinita a 0.90 |
+| `AI_INCLUDE_PERSONAL_DATA` | Consente l’invio di email e telefoni al provider |
+| `AI_TOOL_SECRET` | Token separato per collegare un agente AI esterno |
+| `AI_TOOLS_WRITE_ENABLED` | Abilita creazioni e modifiche tramite gateway AI |
+
+## Importazione automatica Google Calendar
+
+La sincronizzazione è bidirezionale. Ogni voce creata o modificata direttamente su
+Google Calendar viene importata nel gestionale come evento o appuntamento. Titolo,
+date, orari, durata, luogo, note, invitati, recapiti e numero di ospiti vengono
+estratti anche da descrizioni non strutturate. Il payload Google originale resta
+archiviato nel registro `GoogleCalendarImport`.
+
+Con Docker Compose il servizio `calendar-sync` esegue già il controllo ogni 5 minuti.
+È sufficiente valorizzare `CALENDAR_SYNC_SECRET`. Per installazioni diverse da
+Docker Compose configura un cron HTTP verso:
+
+```text
+GET https://tuo-dominio.it/api/google-calendar/import
+Authorization: Bearer valore_di_CALENDAR_SYNC_SECRET
+```
+
+La prima esecuzione legge tutto il calendario; le successive usano il sync token
+incrementale di Google. Per forzare una nuova scansione completa usa `?full=1`.
+
+## Controllore AI dei dati
+
+Il gestionale supporta la Responses API di OpenAI e provider compatibili configurabili
+tramite `AI_BASE_URL`. L’AI analizza ogni nuova importazione Calendar, completa i campi
+ricavabili, segnala contraddizioni e propone correzioni. Non riceve accesso diretto al
+database: restituisce un output JSON vincolato e il server applica esclusivamente una
+lista consentita di campi.
+
+Con `AI_AUTO_APPLY=false` tutte le modifiche richiedono approvazione Admin. Con
+`AI_AUTO_APPLY=true` vengono applicate automaticamente soltanto quando il modello
+indica che i dati sono supportati dal testo originale, la classificazione coincide e
+l’affidabilità supera `AI_MIN_CONFIDENCE`. Ogni operazione resta registrata in
+`AiOperation`. I dati personali vengono oscurati salvo
+`AI_INCLUDE_PERSONAL_DATA=true`.
+
+Un agente esterno può leggere lo schema degli strumenti da
+`GET /api/ai/tools` e invocarli con `POST /api/ai/tools`, autenticandosi con
+`Authorization: Bearer <AI_TOOL_SECRET>`. Il gateway permette ricerca, lettura,
+controllo qualità, inserimento e modifica di clienti, eventi e appuntamenti.
+Le scritture restano bloccate finché `AI_TOOLS_WRITE_ENABLED` non viene impostato
+esplicitamente a `true`; ogni scrittura richiede una motivazione e genera un audit log.
 
 ## Stack
 

@@ -23,7 +23,9 @@ import {
   X,
   AlertTriangle,
   Clock,
-  ExternalLink
+  ExternalLink,
+  Bot,
+  Play
 } from 'lucide-react'
 
 type GCalChange = {
@@ -52,12 +54,18 @@ export default function ImpostazioniPage() {
   const [gcalConnected, setGcalConnected] = useState(false)
   const [gcalConfig, setGcalConfig] = useState<any>(null)
   const [gcalChanges, setGcalChanges] = useState<GCalChange[]>([])
+  const [gcalImportReview, setGcalImportReview] = useState<any[]>([])
+  const [gcalImportTotal, setGcalImportTotal] = useState(0)
   const [gcalLoading, setGcalLoading] = useState(false)
   const [gcalSyncing, setGcalSyncing] = useState(false)
   const [gcalChecking, setGcalChecking] = useState(false)
   const [gcalStatus, setGcalStatus] = useState('')
   const [syncResult, setSyncResult] = useState<any>(null)
   const [syncErrors, setSyncErrors] = useState<string[] | null>(null)
+  const [aiConfig, setAiConfig] = useState<any>(null)
+  const [aiOperations, setAiOperations] = useState<any[]>([])
+  const [aiLoading, setAiLoading] = useState(false)
+  const [aiStatus, setAiStatus] = useState('')
 
   // Load settings and role
   useEffect(() => {
@@ -70,7 +78,10 @@ export default function ImpostazioniPage() {
 
     fetch('/api/auth/me').then(r => r.json()).then(d => {
       setRole(d.role)
-      if (d.role === 'ADMIN') fetchGcalStatus()
+      if (d.role === 'ADMIN') {
+        fetchGcalStatus()
+        fetchAIStatus()
+      }
     }).catch(() => {})
 
     // Check for gcal callback params
@@ -95,6 +106,8 @@ export default function ImpostazioniPage() {
         setGcalConnected(data.connected)
         setGcalConfig(data.config)
         setGcalChanges(data.pendingChanges || [])
+        setGcalImportReview(data.imports?.review || [])
+        setGcalImportTotal(data.imports?.total || 0)
       }
     } catch { /* ignore */ } finally {
       setGcalLoading(false)
@@ -115,6 +128,56 @@ export default function ImpostazioniPage() {
       setGcalStatus('Errore nella connessione a Google')
     } finally {
       setGcalLoading(false)
+    }
+  }
+
+  const fetchAIStatus = async () => {
+    try {
+      const res = await fetch('/api/ai/operations')
+      if (!res.ok) return
+      const data = await res.json()
+      setAiConfig(data.config)
+      setAiOperations(data.operations || [])
+    } catch { /* ignore */ }
+  }
+
+  const handleRunAI = async () => {
+    setAiLoading(true)
+    setAiStatus('')
+    try {
+      const res = await fetch('/api/ai/operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'analyze_pending', limit: 10 })
+      })
+      const data = await res.json()
+      setAiStatus(res.ok
+        ? `Analisi completata: ${data.processed} record, ${data.applied} corretti, ${data.review} da verificare`
+        : `Errore: ${data.error}`)
+      fetchAIStatus()
+      fetchGcalStatus()
+    } catch {
+      setAiStatus('Errore durante l’analisi AI')
+    } finally {
+      setAiLoading(false)
+    }
+  }
+
+  const handleReviewAI = async (operationId: string, action: 'approve' | 'reject') => {
+    try {
+      const res = await fetch('/api/ai/operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action, operationId })
+      })
+      const data = await res.json()
+      setAiStatus(res.ok
+        ? `Proposta AI ${action === 'approve' ? 'applicata' : 'rifiutata'}`
+        : `Errore: ${data.error}`)
+      fetchAIStatus()
+      fetchGcalStatus()
+    } catch {
+      setAiStatus('Errore durante la revisione AI')
     }
   }
 
@@ -143,7 +206,7 @@ export default function ImpostazioniPage() {
       const res = await fetch('/api/google-calendar/sync', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        setSyncResult(data.synced)
+        setSyncResult({ ...data.synced, imported: data.imported })
         setSyncErrors(data.erroriDettaglio || null)
         setGcalStatus(data.synced?.errori > 0
           ? `Sincronizzazione completata con ${data.synced.errori} errori`
@@ -248,7 +311,7 @@ export default function ImpostazioniPage() {
               Google Calendar
             </CardTitle>
             <CardDescription>
-              Sincronizza eventi, appuntamenti e date opzionate con Google Calendar
+              Importa automaticamente tutto ciò che viene scritto su Google Calendar e sincronizza le modifiche del gestionale
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -326,7 +389,7 @@ export default function ImpostazioniPage() {
                     data-testid="gcal-sync-btn"
                   >
                     <RefreshCw className={`w-4 h-4 mr-2 ${gcalSyncing ? 'animate-spin' : ''}`} />
-                    {gcalSyncing ? 'Sincronizzazione...' : 'Sincronizza ora'}
+                    {gcalSyncing ? 'Importazione e sincronizzazione...' : 'Importa e sincronizza tutto'}
                   </Button>
                   <Button
                     variant="outline"
@@ -342,7 +405,15 @@ export default function ImpostazioniPage() {
                 {/* Sync result */}
                 {syncResult && (
                   <div className="p-3 rounded-lg border bg-blue-50 text-sm" data-testid="gcal-sync-result">
-                    <p className="font-medium text-blue-800 mb-1">Risultato sincronizzazione:</p>
+                    <p className="font-medium text-blue-800 mb-1">Risultato sincronizzazione bidirezionale:</p>
+                    {syncResult.imported && (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-green-700 mb-3 pb-3 border-b border-blue-200">
+                        <span>Letti da Google: {syncResult.imported.letti}</span>
+                        <span>Importati: {syncResult.imported.importati}</span>
+                        <span>Aggiornati da Google: {syncResult.imported.aggiornati}</span>
+                        <span>Da verificare: {syncResult.imported.daVerificare}</span>
+                      </div>
+                    )}
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-blue-700">
                       <span>Nuovi eventi: {syncResult.eventi}</span>
                       <span>Nuovi appunt.: {syncResult.appuntamenti}</span>
@@ -350,6 +421,39 @@ export default function ImpostazioniPage() {
                       <span>Saltati: {syncResult.skipped}</span>
                       {syncResult.errori > 0 && <span className="text-red-600 col-span-2">Errori: {syncResult.errori}</span>}
                     </div>
+                  </div>
+                )}
+                <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 text-xs text-blue-800">
+                  <p className="font-medium">Importazione automatica pronta</p>
+                  <p className="mt-1">
+                    La prima esecuzione acquisisce l’intero calendario. In seguito vengono lette solo le novità:
+                    titolo, date, orari, durata, luogo, note, invitati, contatti e numero di ospiti.
+                    Le voci poco chiare vengono comunque registrate e marcate “da verificare”.
+                  </p>
+                  {gcalImportTotal > 0 && (
+                    <p className="mt-2 font-medium">
+                      {gcalImportTotal} voci Google acquisite · {gcalImportReview.length} da verificare
+                    </p>
+                  )}
+                </div>
+                {gcalImportReview.length > 0 && (
+                  <div className="space-y-2" data-testid="gcal-import-review-list">
+                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
+                      <AlertTriangle className="w-4 h-4 text-amber-500" />
+                      Importazioni da verificare ({gcalImportReview.length})
+                    </h4>
+                    {gcalImportReview.map((item) => (
+                      <div key={item.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium capitalize">{item.tipoRisorsa}</span>
+                          {item.risorsaId && <span className="text-gray-500">#{item.risorsaId}</span>}
+                          <span className="text-xs text-gray-500">
+                            affidabilità {Math.round(item.confidence * 100)}%
+                          </span>
+                        </div>
+                        <p className="mt-1 text-amber-800">{item.warning}</p>
+                      </div>
+                    ))}
                   </div>
                 )}
                 {syncErrors && syncErrors.length > 0 && (
@@ -419,6 +523,106 @@ export default function ImpostazioniPage() {
                   </div>
                 )}
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {role === 'ADMIN' && (
+        <Card className="border-violet-200" data-testid="ai-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="w-5 h-5 text-violet-600" />
+              Controllore AI
+            </CardTitle>
+            <CardDescription>
+              Analizza le importazioni, completa i dati espliciti, rileva problemi e propone correzioni tracciate
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {aiStatus && (
+              <div className={`rounded-lg px-4 py-2 text-sm ${
+                aiStatus.startsWith('Errore') ? 'bg-red-50 text-red-700' : 'bg-violet-50 text-violet-800'
+              }`}>
+                {aiStatus}
+              </div>
+            )}
+
+            <div className={`rounded-lg border p-4 ${
+              aiConfig?.configured ? 'border-green-200 bg-green-50' : 'border-amber-200 bg-amber-50'
+            }`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="font-medium">
+                    {aiConfig?.configured ? 'AI connessa e pronta' : 'AI non ancora configurata'}
+                  </p>
+                  {aiConfig?.configured ? (
+                    <p className="text-xs text-gray-600 mt-1">
+                      {aiConfig.provider} · {aiConfig.model} ·
+                      {aiConfig.autoApply
+                        ? ` applicazione automatica da ${Math.round(aiConfig.minConfidence * 100)}%`
+                        : ' approvazione Admin richiesta'}
+                      {!aiConfig.includePersonalData && ' · dati personali oscurati'}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-amber-800 mt-1">
+                      Configura AI_ENABLED=true e AI_API_KEY nel file ambiente del server.
+                    </p>
+                  )}
+                </div>
+                <Button
+                  onClick={handleRunAI}
+                  disabled={aiLoading || !aiConfig?.configured}
+                  className="bg-violet-600 hover:bg-violet-700"
+                >
+                  <Play className="w-4 h-4 mr-2" />
+                  {aiLoading ? 'Analisi in corso...' : 'Analizza dati pendenti'}
+                </Button>
+              </div>
+            </div>
+
+            {aiOperations.filter((item) => item.status === 'review').length > 0 && (
+              <div className="space-y-2">
+                <h4 className="font-medium flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-500" />
+                  Correzioni AI da approvare
+                </h4>
+                {aiOperations.filter((item) => item.status === 'review').map((item) => (
+                  <div key={item.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div>
+                        <p className="text-sm font-medium">
+                          {item.sourceType} #{item.sourceId}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          Affidabilità {Math.round((item.confidence || 0) * 100)}% · {item.model}
+                        </p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Button size="sm" variant="outline" onClick={() => handleReviewAI(item.id, 'approve')}
+                          className="text-green-700 border-green-300">
+                          <Check className="w-4 h-4 mr-1" /> Applica
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => handleReviewAI(item.id, 'reject')}
+                          className="text-red-700 border-red-300">
+                          <X className="w-4 h-4 mr-1" /> Rifiuta
+                        </Button>
+                      </div>
+                    </div>
+                    {item.proposedChanges && (
+                      <pre className="mt-2 overflow-x-auto rounded bg-white/70 p-2 text-xs text-gray-700 whitespace-pre-wrap">
+                        {JSON.stringify(JSON.parse(item.proposedChanges), null, 2)}
+                      </pre>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {aiOperations.some((item) => item.status === 'failed') && (
+              <p className="text-xs text-red-700">
+                Alcune analisi sono fallite: il dettaglio è conservato nel registro AI e può essere rieseguito.
+              </p>
             )}
           </CardContent>
         </Card>

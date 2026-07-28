@@ -3,6 +3,8 @@ import { requireAuth } from '@/lib/auth'
 import prisma from '@/lib/prisma'
 import { getActiveConfig, getAuthenticatedClient, getCalendarService, buildCalendarEvent } from '@/lib/google-calendar'
 import { dbJsonParse } from '@/lib/db-json'
+import { importGoogleCalendar } from '@/lib/google-calendar-import'
+import { processPendingAIEnhancements } from '@/lib/ai-service'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,11 +23,28 @@ export async function GET(req: NextRequest) {
 
   try {
     const config = await getActiveConfig()
-    const pendingChanges = await prisma.googleCalendarChange.findMany({
-      where: { stato: 'pending' },
-      orderBy: { createdAt: 'desc' },
-      take: 50
-    })
+    const [pendingChanges, importReview, importTotal] = await Promise.all([
+      prisma.googleCalendarChange.findMany({
+        where: { stato: 'pending' },
+        orderBy: { createdAt: 'desc' },
+        take: 50
+      }),
+      prisma.googleCalendarImport.findMany({
+        where: { stato: 'review' },
+        orderBy: { lastImportedAt: 'desc' },
+        take: 50,
+        select: {
+          id: true,
+          gcalEventId: true,
+          tipoRisorsa: true,
+          risorsaId: true,
+          confidence: true,
+          warning: true,
+          lastImportedAt: true
+        }
+      }),
+      prisma.googleCalendarImport.count()
+    ])
 
     return NextResponse.json({
       connected: !!config,
@@ -35,7 +54,8 @@ export async function GET(req: NextRequest) {
         calendarId: config.calendarId,
         userEmail: config.user?.email
       } : null,
-      pendingChanges
+      pendingChanges,
+      imports: { total: importTotal, review: importReview }
     })
   } catch (error: any) {
     console.error('Errore status GCal:', error)
@@ -64,12 +84,26 @@ export async function POST(req: NextRequest) {
     const synced = { eventi: 0, appuntamenti: 0, aggiornati: 0, errori: 0, skipped: 0 }
     const erroriDettaglio: string[] = []
 
+    // Prima acquisisce ciò che è stato scritto o modificato direttamente su Google.
+    // Gli elementi importati vengono esclusi dal push successivo, così il testo originale
+    // non viene normalizzato o sovrascritto dal gestionale.
+    const imported = await importGoogleCalendar()
+    const ai = await processPendingAIEnhancements()
+    const importedRows = await prisma.googleCalendarImport.findMany({
+      select: { gcalEventId: true }
+    })
+    const importedIds = new Set(importedRows.map((item) => item.gcalEventId))
+
     // === 1) EVENTI ===
     const eventi = await prisma.evento.findMany()
     console.log(`[GCal Sync] Inizio sync: ${eventi.length} eventi totali`)
 
     for (const evento of eventi) {
       try {
+        if (evento.gcalEventId && importedIds.has(evento.gcalEventId)) {
+          synced.skipped++
+          continue
+        }
         // Parsa dateProposte (stringa JSON in SQLite)
         const dateProposte = parseDateProposte(evento.dateProposte)
         const eventoData = { ...evento, dateProposte }
@@ -130,6 +164,10 @@ export async function POST(req: NextRequest) {
 
     for (const app of appuntamenti) {
       try {
+        if (app.gcalEventId && importedIds.has(app.gcalEventId)) {
+          synced.skipped++
+          continue
+        }
         const calEvent = buildCalendarEvent('appuntamento', app)
         if (!calEvent) { synced.skipped++; continue }
 
@@ -182,6 +220,8 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({
       success: true,
       synced,
+      imported,
+      ai,
       erroriDettaglio: erroriDettaglio.length > 0 ? erroriDettaglio.slice(0, 10) : undefined
     })
   } catch (error: any) {

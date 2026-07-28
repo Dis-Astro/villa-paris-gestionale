@@ -9,41 +9,41 @@ datasource db {
 
 // Modello per gli eventi
 model Evento {
-  id               Int              @id @default(autoincrement())
-  titolo           String
-  tipo             String
-  dataConfermata   DateTime?
-  fascia           String
-  stato            String
-  personePreviste  Int?
-  note             String?
-  menu             Json?
-  struttura        Json?
-  dateProposte     Json?
-  disposizioneSala Json?
+  id                     Int       @id @default(autoincrement())
+  titolo                 String
+  tipo                   String
+  dataConfermata         DateTime?
+  fascia                 String
+  stato                  String
+  personePreviste        Int?
+  note                   String?
+  menu                   Json?
+  struttura              Json?
+  dateProposte           Json?
+  disposizioneSala       Json?
   disposizioneSalaPianoB Json?
-  pianoAttivo      String?
-  
-  // Campi report aziendale
-  luogo            String?
-  prezzo           Float?
-  menuPasto        String?
-  menuBuffet       String?
-  sposa            String?
-  sposo            String?
-  // Data primo contatto commerciale
-  dataPrimoContatto    DateTime?
-  canalePrimoContatto  String?
-  appuntamentoOrigineId Int?
-  gcalEventId      String?
-  
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  pianoAttivo            String?
 
-  clienti          EventoCliente[]
-  versioni         VersioneEvento[]
-  overrideLogs     OverrideLog[]
-  appuntamentoOrigine Appuntamento? @relation("EventoDaAppuntamento", fields: [appuntamentoOrigineId], references: [id], onDelete: SetNull)
+  // Campi report aziendale
+  luogo                 String?
+  prezzo                Float?
+  menuPasto             String?
+  menuBuffet            String?
+  sposa                 String?
+  sposo                 String?
+  // Data primo contatto commerciale
+  dataPrimoContatto     DateTime?
+  canalePrimoContatto   String?
+  appuntamentoOrigineId Int?
+  gcalEventId           String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  clienti             EventoCliente[]
+  versioni            VersioneEvento[]
+  overrideLogs        OverrideLog[]
+  appuntamentoOrigine Appuntamento?    @relation("EventoDaAppuntamento", fields: [appuntamentoOrigineId], references: [id], onDelete: SetNull)
 
   @@index([dataConfermata])
   @@index([stato])
@@ -52,37 +52,37 @@ model Evento {
 
 // Versione evento - snapshot anti-contestazione
 model VersioneEvento {
-  id            String   @id @default(uuid())
-  eventoId      Int
-  evento        Evento   @relation(fields: [eventoId], references: [id], onDelete: Cascade)
-  
-  numero        Int
-  tipo          String
-  watermark     String
-  
-  snapshot      Json
-  hash          String?
-  
-  autore        String?
-  commento      String?
-  
-  createdAt     DateTime @default(now())
-  
+  id       String @id @default(uuid())
+  eventoId Int
+  evento   Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  numero    Int
+  tipo      String
+  watermark String
+
+  snapshot Json
+  hash     String?
+
+  autore   String?
+  commento String?
+
+  createdAt DateTime @default(now())
+
   @@index([eventoId])
 }
 
 // Log override blocco -10 giorni
 model OverrideLog {
-  id            String   @id @default(uuid())
-  eventoId      Int
-  evento        Evento   @relation(fields: [eventoId], references: [id], onDelete: Cascade)
-  
-  motivo        String
-  autore        String?
+  id       String @id @default(uuid())
+  eventoId Int
+  evento   Evento @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+
+  motivo          String
+  autore          String?
   campoModificato String?
-  
-  createdAt     DateTime @default(now())
-  
+
+  createdAt DateTime @default(now())
+
   @@index([eventoId])
 }
 
@@ -97,7 +97,7 @@ model MenuBase {
 
 // Modello per i clienti
 model Cliente {
-  id                      Int              @id @default(autoincrement())
+  id                      Int       @id @default(autoincrement())
   nome                    String
   cognome                 String?
   email                   String?
@@ -109,10 +109,10 @@ model Cliente {
   dataNascita             DateTime?
   codiceFiscale           String?
   // Classificazione commerciale
-  tipoCliente             String?          // sposa, sposo, festeggiato, azienda, altro
-  canalePrimoContatto     String?          // web, passaparola, fiera, social, altro
-  dataPrimoContatto       DateTime?        // data del 1° contatto → appare in calendario
-  isSpam                  Boolean          @default(false)
+  tipoCliente             String? // sposa, sposo, festeggiato, azienda, altro
+  canalePrimoContatto     String? // web, passaparola, fiera, social, altro
+  dataPrimoContatto       DateTime? // data del 1° contatto → appare in calendario
+  isSpam                  Boolean   @default(false)
   spamReason              String?
   spamMarkedAt            DateTime?
   // Secondo contatto (es. sposo se il contatto primario è la sposa)
@@ -121,35 +121,35 @@ model Cliente {
   secondoContattoEmail    String?
   // Note
   notaAnagrafica          String?
-  createdAt               DateTime         @default(now())
-  updatedAt               DateTime         @updatedAt
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
-  eventi    EventoCliente[]
-  appuntamentiPrincipali Appuntamento[]    @relation("ClientePrincipaleAppuntamenti")
-  appuntamenti          AppuntamentoCliente[]
-  interazioni           InterazioneCliente[]
+  eventi                 EventoCliente[]
+  appuntamentiPrincipali Appuntamento[]        @relation("ClientePrincipaleAppuntamenti")
+  appuntamenti           AppuntamentoCliente[]
+  interazioni            InterazioneCliente[]
 
   @@index([email])
 }
 
 model User {
-  id           String               @id @default(cuid())
-  email        String               @unique
+  id           String   @id @default(cuid())
+  email        String   @unique
   passwordHash String
-  role         String               @default("WORKER")
-  isActive     Boolean              @default(true)
-  createdAt    DateTime             @default(now())
-  updatedAt    DateTime             @updatedAt
+  role         String   @default("WORKER")
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  appuntamentiGestiti Appuntamento[]      @relation("OperatoreAppuntamenti")
+  appuntamentiGestiti Appuntamento[]        @relation("OperatoreAppuntamenti")
   interazioniGestite  InterazioneCliente[]
   auditLogs           AuditLog[]
-  presenzeRegistrate  PresenzaVilla[]     @relation("CreatedByPresenze")
+  presenzeRegistrate  PresenzaVilla[]       @relation("CreatedByPresenze")
   googleCalendar      GoogleCalendarConfig? @relation("GoogleCalendarUser")
 }
 
 model PresenzaVilla {
-  id              Int       @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   dataRiferimento DateTime
   nome            String
   cognome         String
@@ -161,44 +161,44 @@ model PresenzaVilla {
   note            String?
   meteo           String?
   createdByUserId String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
-  createdByUser   User?     @relation("CreatedByPresenze", fields: [createdByUserId], references: [id], onDelete: SetNull)
+  createdByUser User? @relation("CreatedByPresenze", fields: [createdByUserId], references: [id], onDelete: SetNull)
 
   @@index([dataRiferimento])
   @@index([createdByUserId])
 }
 
 model Appuntamento {
-  id                  Int                 @id @default(autoincrement())
+  id                  Int     @id @default(autoincrement())
   clientePrincipaleId Int
-  clientePrincipale   Cliente             @relation("ClientePrincipaleAppuntamenti", fields: [clientePrincipaleId], references: [id], onDelete: Cascade)
+  clientePrincipale   Cliente @relation("ClientePrincipaleAppuntamenti", fields: [clientePrincipaleId], references: [id], onDelete: Cascade)
 
-  dataAppuntamento    DateTime
-  durataMinuti        Int?                @default(0)
-  esito               String?
-  riassuntoColloquio  String?
-  noteColloquio       String?
-  numeroProgressivo   Int?
-  statoFunnel         String?             @default("in_trattativa")
-  datiMancanti        String?
+  dataAppuntamento   DateTime
+  durataMinuti       Int?     @default(0)
+  esito              String?
+  riassuntoColloquio String?
+  noteColloquio      String?
+  numeroProgressivo  Int?
+  statoFunnel        String?  @default("in_trattativa")
+  datiMancanti       String?
 
   dateOpzionate       Json?
   dataScadenzaOpzione DateTime?
   extraUnlockFinoAl   DateTime?
-  statoOpzione        String?             @default("nessuna")
+  statoOpzione        String?   @default("nessuna")
 
-  operatoreId         String?
-  operatore           User?               @relation("OperatoreAppuntamenti", fields: [operatoreId], references: [id], onDelete: SetNull)
-  gcalEventId         String?
+  operatoreId String?
+  operatore   User?   @relation("OperatoreAppuntamenti", fields: [operatoreId], references: [id], onDelete: SetNull)
+  gcalEventId String?
 
-  createdAt           DateTime            @default(now())
-  updatedAt           DateTime            @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  clienti             AppuntamentoCliente[]
-  interazioni         InterazioneCliente[]
-  eventi              Evento[]            @relation("EventoDaAppuntamento")
+  clienti     AppuntamentoCliente[]
+  interazioni InterazioneCliente[]
+  eventi      Evento[]              @relation("EventoDaAppuntamento")
 
   @@index([clientePrincipaleId])
   @@index([dataAppuntamento])
@@ -207,33 +207,33 @@ model Appuntamento {
 }
 
 model AppuntamentoCliente {
-  id             Int          @id @default(autoincrement())
+  id             Int     @id @default(autoincrement())
   appuntamentoId Int
   clienteId      Int
   ruolo          String?
 
-  appuntamento   Appuntamento @relation(fields: [appuntamentoId], references: [id], onDelete: Cascade)
-  cliente        Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  appuntamento Appuntamento @relation(fields: [appuntamentoId], references: [id], onDelete: Cascade)
+  cliente      Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
 
+  @@unique([appuntamentoId, clienteId])
   @@index([appuntamentoId])
   @@index([clienteId])
-  @@unique([appuntamentoId, clienteId])
 }
 
 model InterazioneCliente {
-  id               Int          @id @default(autoincrement())
-  clienteId        Int
-  appuntamentoId   Int?
-  tipo             String
-  durataMinuti     Int?         @default(0)
-  sintesi          String?
-  operatoreId      String?
-  dataInterazione  DateTime     @default(now())
-  createdAt        DateTime     @default(now())
+  id              Int      @id @default(autoincrement())
+  clienteId       Int
+  appuntamentoId  Int?
+  tipo            String
+  durataMinuti    Int?     @default(0)
+  sintesi         String?
+  operatoreId     String?
+  dataInterazione DateTime @default(now())
+  createdAt       DateTime @default(now())
 
-  cliente          Cliente      @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  appuntamento     Appuntamento? @relation(fields: [appuntamentoId], references: [id], onDelete: SetNull)
-  operatore        User?        @relation(fields: [operatoreId], references: [id], onDelete: SetNull)
+  cliente      Cliente       @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  appuntamento Appuntamento? @relation(fields: [appuntamentoId], references: [id], onDelete: SetNull)
+  operatore    User?         @relation(fields: [operatoreId], references: [id], onDelete: SetNull)
 
   @@index([clienteId])
   @@index([appuntamentoId])
@@ -241,7 +241,7 @@ model InterazioneCliente {
 }
 
 model AuditLog {
-  id            String    @id @default(cuid())
+  id            String   @id @default(cuid())
   entityType    String
   entityId      String
   action        String
@@ -252,9 +252,9 @@ model AuditLog {
   actorRole     String?
   actorEmail    String?
   metadata      Json?
-  createdAt     DateTime  @default(now())
+  createdAt     DateTime @default(now())
 
-  actor         User?     @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
 
   @@index([entityType, entityId])
   @@index([createdAt])
@@ -262,42 +262,93 @@ model AuditLog {
 
 // Relazione N:N tra Evento e Cliente
 model EventoCliente {
-  id         Int     @id @default(autoincrement())
-  evento     Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
-  eventoId   Int
-  cliente    Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
-  clienteId  Int
+  id        Int     @id @default(autoincrement())
+  evento    Evento  @relation(fields: [eventoId], references: [id], onDelete: Cascade)
+  eventoId  Int
+  cliente   Cliente @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  clienteId Int
 
   @@index([eventoId])
   @@index([clienteId])
 }
 
 model GoogleCalendarConfig {
-  id              Int      @id @default(autoincrement())
-  userId          String   @unique
-  user            User     @relation("GoogleCalendarUser", fields: [userId], references: [id], onDelete: Cascade)
-  accessToken     String
-  refreshToken    String?
-  tokenExpiry     DateTime?
-  calendarId      String   @default("primary")
-  syncToken       String?
-  connectedAt     DateTime @default(now())
-  lastSyncAt      DateTime?
-  isActive        Boolean  @default(true)
+  id           Int       @id @default(autoincrement())
+  userId       String    @unique
+  user         User      @relation("GoogleCalendarUser", fields: [userId], references: [id], onDelete: Cascade)
+  accessToken  String
+  refreshToken String?
+  tokenExpiry  DateTime?
+  calendarId   String    @default("primary")
+  syncToken    String?
+  connectedAt  DateTime  @default(now())
+  lastSyncAt   DateTime?
+  isActive     Boolean   @default(true)
+}
+
+// Registro idempotente di tutto ciò che arriva da Google Calendar.
+// Conserva il payload originale anche quando l'evento è incompleto o ambiguo.
+model GoogleCalendarImport {
+  id               Int       @id @default(autoincrement())
+  gcalEventId      String    @unique
+  recurringEventId String?
+  iCalUID          String?
+  tipoRisorsa      String
+  risorsaId        Int?
+  stato            String    @default("imported")
+  confidence       Float     @default(0)
+  fingerprint      String?
+  rawData          String
+  warning          String?
+  aiStatus         String?   @default("pending")
+  aiAnalyzedAt     DateTime?
+  firstImportedAt  DateTime  @default(now())
+  lastImportedAt   DateTime  @default(now())
+  deletedAt        DateTime?
+
+  @@index([tipoRisorsa, risorsaId])
+  @@index([stato])
+  @@index([iCalUID])
+  @@index([lastImportedAt])
+}
+
+model AiOperation {
+  id              String    @id @default(cuid())
+  sourceType      String
+  sourceId        String?
+  operationType   String
+  status          String    @default("pending")
+  provider        String
+  model           String
+  inputData       String?
+  outputData      String?
+  proposedChanges String?
+  appliedChanges  String?
+  confidence      Float?
+  requiresReview  Boolean   @default(true)
+  error           String?
+  reviewedBy      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  completedAt     DateTime?
+
+  @@index([sourceType, sourceId])
+  @@index([status])
+  @@index([createdAt])
 }
 
 model GoogleCalendarChange {
-  id              Int      @id @default(autoincrement())
-  gcalEventId     String
-  tipoRisorsa     String
-  risorsaId       Int?
-  tipoModifica    String
-  dettagli        String?
-  modificatoDa    String?
-  stato           String   @default("pending")
-  validatoDa      String?
-  validatoAt      DateTime?
-  createdAt       DateTime @default(now())
+  id           Int       @id @default(autoincrement())
+  gcalEventId  String
+  tipoRisorsa  String
+  risorsaId    Int?
+  tipoModifica String
+  dettagli     String?
+  modificatoDa String?
+  stato        String    @default("pending")
+  validatoDa   String?
+  validatoAt   DateTime?
+  createdAt    DateTime  @default(now())
 
   @@index([gcalEventId])
   @@index([stato])

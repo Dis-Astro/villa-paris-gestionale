@@ -135,6 +135,9 @@ export function buildCalendarEvent(
       summary,
       description,
       colorId,
+      extendedProperties: {
+        private: { villaParisType: 'evento', villaParisId: String(data.id || '') }
+      },
       start: { date: dateStr },
       end: { date: nextDay(dateStr) },
     }
@@ -160,6 +163,9 @@ export function buildCalendarEvent(
         `Villa Paris Gestionale (ID: ${data.id || ''})`
       ].filter(Boolean).join('\n'),
       colorId: '3',
+      extendedProperties: {
+        private: { villaParisType: 'appuntamento', villaParisId: String(data.id || '') }
+      },
       start: { dateTime: date.toISOString(), timeZone: 'Europe/Rome' },
       end: { dateTime: endDate.toISOString(), timeZone: 'Europe/Rome' },
     }
