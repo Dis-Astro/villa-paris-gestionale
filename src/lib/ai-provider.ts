@@ -19,6 +19,79 @@ async function readJsonResponse(response: Response) {
   }
 }
 
+function errorPayloadText(raw: any) {
+  return JSON.stringify(raw || {}).toLowerCase()
+}
+
+function isDailyQuotaError(raw: any) {
+  const payload = errorPayloadText(raw)
+  return payload.includes('quota_exceeded') ||
+    payload.includes('per_day') ||
+    payload.includes('per day') ||
+    payload.includes('daily') ||
+    payload.includes('rpd')
+}
+
+function retryDelayMs(response: Response, raw: any, attempt: number) {
+  const retryAfter = response.headers.get('retry-after')
+  if (retryAfter) {
+    const seconds = Number(retryAfter)
+    if (Number.isFinite(seconds)) return Math.max(1_000, seconds * 1_000)
+    const date = Date.parse(retryAfter)
+    if (Number.isFinite(date)) return Math.max(1_000, date - Date.now())
+  }
+
+  const details = Array.isArray(raw?.error?.details) ? raw.error.details : []
+  const retryInfo = details.find((detail: any) =>
+    typeof detail?.retryDelay === 'string' || typeof detail?.retry_delay === 'string'
+  )
+  const delay = retryInfo?.retryDelay || retryInfo?.retry_delay
+  const match = typeof delay === 'string' ? delay.match(/^([\d.]+)s$/) : null
+  if (match) return Math.max(1_000, Number(match[1]) * 1_000)
+
+  return 1_500 * (2 ** attempt) + Math.floor(Math.random() * 500)
+}
+
+async function requestJsonWithRetry(
+  url: string,
+  init: RequestInit,
+  timeoutMs: number,
+  maxRetries = 2
+) {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    const response = await fetch(url, {
+      ...init,
+      signal: AbortSignal.timeout(timeoutMs)
+    })
+    const raw = await readJsonResponse(response)
+    const transient = response.status === 408 || response.status === 429 || response.status >= 500
+    const dailyQuota = response.status === 429 && isDailyQuotaError(raw)
+
+    if (response.ok || !transient || dailyQuota || attempt === maxRetries) {
+      return { response, raw }
+    }
+
+    const waitMs = Math.min(retryDelayMs(response, raw, attempt), 20_000)
+    await new Promise((resolve) => setTimeout(resolve, waitMs))
+  }
+
+  throw new Error('Richiesta AI non completata')
+}
+
+function providerError(response: Response, raw: any) {
+  if (response.status === 429) {
+    if (isDailyQuotaError(raw)) {
+      return new Error(
+        'Quota giornaliera Gemini esaurita. Attendi il rinnovo della quota oppure abilita la fatturazione in Google AI Studio.'
+      )
+    }
+    return new Error(
+      'Gemini sta limitando temporaneamente le richieste. Attendi circa un minuto e riprova; se continua, controlla i limiti del modello in Google AI Studio.'
+    )
+  }
+  return new Error(raw?.error?.message || raw?.message || `Errore AI HTTP ${response.status}`)
+}
+
 function responseText(raw: any) {
   if (typeof raw.output_text === 'string') return raw.output_text
   for (const item of raw.output || []) {
@@ -75,18 +148,16 @@ export async function requestStructuredAI(
     }
   }
 
-  const response = await fetch(url, {
+  const { response, raw } = await requestJsonWithRetry(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(Number(process.env.AI_TIMEOUT_MS || '60000'))
-  })
-  const raw = await readJsonResponse(response)
+    body: JSON.stringify(body)
+  }, Number(process.env.AI_TIMEOUT_MS || '60000'))
   if (!response.ok) {
-    throw new Error(raw?.error?.message || raw?.message || `Errore AI HTTP ${response.status}`)
+    throw providerError(response, raw)
   }
   try {
     return { raw, parsed: JSON.parse(responseText(raw)) }
@@ -110,18 +181,16 @@ export async function testAIConnection(config: AIConfig) {
     input: 'Rispondi soltanto con: connessione riuscita',
     max_output_tokens: 30
   }
-  const response = await fetch(url, {
+  const { response, raw } = await requestJsonWithRetry(url, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30000)
-  })
-  const raw = await readJsonResponse(response)
+    body: JSON.stringify(body)
+  }, 30000)
   if (!response.ok) {
-    throw new Error(raw?.error?.message || raw?.message || `Errore AI HTTP ${response.status}`)
+    throw providerError(response, raw)
   }
   return { success: true, message: 'Connessione AI riuscita', responseId: raw.id || null }
 }
@@ -132,7 +201,7 @@ export async function requestAIChatWithTools(
   tools: Array<Record<string, unknown>>
 ) {
   if (!config.apiKey) throw new Error('Chiave API AI non configurata')
-  const response = await fetch(`${config.baseUrl}/chat/completions`, {
+  const { response, raw } = await requestJsonWithRetry(`${config.baseUrl}/chat/completions`, {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${config.apiKey}`,
@@ -150,12 +219,10 @@ export async function requestAIChatWithTools(
         }
       })),
       tool_choice: 'auto'
-    }),
-    signal: AbortSignal.timeout(Number(process.env.AI_CHAT_TIMEOUT_MS || '90000'))
-  })
-  const raw = await readJsonResponse(response)
+    })
+  }, Number(process.env.AI_CHAT_TIMEOUT_MS || '90000'), 3)
   if (!response.ok) {
-    throw new Error(raw?.error?.message || raw?.message || `Errore AI HTTP ${response.status}`)
+    throw providerError(response, raw)
   }
   const message = raw?.choices?.[0]?.message
   if (!message) throw new Error('La chat AI non ha restituito una risposta')
@@ -174,7 +241,7 @@ export async function requestGeminiAudioAnalysis(
   if (audio.byteLength > 20 * 1024 * 1024) throw new Error('La registrazione supera 20 MB')
 
   const endpoint = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(config.model)}:generateContent`
-  const response = await fetch(endpoint, {
+  const { response, raw } = await requestJsonWithRetry(endpoint, {
     method: 'POST',
     headers: {
       'x-goog-api-key': config.apiKey,
@@ -192,12 +259,10 @@ export async function requestGeminiAudioAnalysis(
         responseMimeType: 'application/json',
         responseSchema: schema
       }
-    }),
-    signal: AbortSignal.timeout(Number(process.env.AI_AUDIO_TIMEOUT_MS || '180000'))
-  })
-  const raw = await readJsonResponse(response)
+    })
+  }, Number(process.env.AI_AUDIO_TIMEOUT_MS || '180000'), 1)
   if (!response.ok) {
-    throw new Error(raw?.error?.message || `Errore Gemini audio HTTP ${response.status}`)
+    throw providerError(response, raw)
   }
   const text = raw?.candidates?.[0]?.content?.parts
     ?.map((part: any) => part.text)
