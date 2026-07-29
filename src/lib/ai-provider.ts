@@ -126,6 +126,42 @@ export async function testAIConnection(config: AIConfig) {
   return { success: true, message: 'Connessione AI riuscita', responseId: raw.id || null }
 }
 
+export async function requestAIChatWithTools(
+  config: AIConfig,
+  messages: Array<{ role: string; content?: string; tool_call_id?: string; tool_calls?: any[] }>,
+  tools: Array<Record<string, unknown>>
+) {
+  if (!config.apiKey) throw new Error('Chiave API AI non configurata')
+  const response = await fetch(`${config.baseUrl}/chat/completions`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${config.apiKey}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify({
+      model: config.model,
+      messages,
+      tools: tools.map((tool: any) => ({
+        type: 'function',
+        function: {
+          name: tool.name,
+          description: tool.description,
+          parameters: tool.parameters
+        }
+      })),
+      tool_choice: 'auto'
+    }),
+    signal: AbortSignal.timeout(Number(process.env.AI_CHAT_TIMEOUT_MS || '90000'))
+  })
+  const raw = await readJsonResponse(response)
+  if (!response.ok) {
+    throw new Error(raw?.error?.message || raw?.message || `Errore AI HTTP ${response.status}`)
+  }
+  const message = raw?.choices?.[0]?.message
+  if (!message) throw new Error('La chat AI non ha restituito una risposta')
+  return { raw, message }
+}
+
 export async function requestGeminiAudioAnalysis(
   config: AIConfig,
   audio: Buffer,

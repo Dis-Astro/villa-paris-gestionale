@@ -708,7 +708,7 @@ export default function ImpostazioniPage() {
               <Archive className="h-5 w-5 text-slate-600" /> Storico leggero
             </CardTitle>
             <CardDescription>
-              Esporta appuntamenti ed eventi passati in un file JSON completo e, solo dopo conferma, li rimuove dai dati operativi.
+              Scaricare un file non cancella nulla. La rimozione dal database avviene soltanto con il comando separato “Archivia e rimuovi dal DB” e una conferma testuale.
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
@@ -736,7 +736,7 @@ export default function ImpostazioniPage() {
                 <div className="mt-3 flex flex-wrap gap-2">
                   <Button variant="outline" size="sm" asChild>
                     <a href={`/api/storico?before=${encodeURIComponent(historyBefore)}&download=1`}>
-                      <Download className="mr-2 h-4 w-4" /> Scarica anteprima
+                      <Download className="mr-2 h-4 w-4" /> Scarica copia (non cancella)
                     </a>
                   </Button>
                   <Button
@@ -745,7 +745,7 @@ export default function ImpostazioniPage() {
                     disabled={historyLoading || (!historyPreview.eventi && !historyPreview.appuntamenti)}
                     className="bg-amber-700 hover:bg-amber-800"
                   >
-                    <Archive className="mr-2 h-4 w-4" /> Crea file e alleggerisci
+                    <Archive className="mr-2 h-4 w-4" /> Archivia e rimuovi dal DB
                   </Button>
                 </div>
               </div>

@@ -273,6 +273,7 @@ model GoogleCalendarConfig {
   tokenExpiry     DateTime?
   calendarId      String   @default("primary")
   syncToken       String?
+  syncScope       String?
   connectedAt     DateTime @default(now())
   lastSyncAt      DateTime?
   isActive        Boolean  @default(true)

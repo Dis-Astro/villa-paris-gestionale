@@ -533,6 +533,11 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
   if (!authClient) throw new Error('Token Google scaduto o non valido')
 
   const calendar = getCalendarService(authClient.oauth2Client)
+  const syncScope = 'rolling-three-years-v1'
+  const scopeChanged = config.syncScope !== syncScope
+  const timeMin = new Date()
+  timeMin.setFullYear(timeMin.getFullYear() - 3)
+  timeMin.setHours(0, 0, 0, 0)
   const result: GoogleImportResult = {
     letti: 0,
     importati: 0,
@@ -542,11 +547,11 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
     invariati: 0,
     daVerificare: 0,
     errori: 0,
-    fullSync: options.forceFull || !config.syncToken,
+    fullSync: options.forceFull || scopeChanged || !config.syncToken,
     erroriDettaglio: []
   }
   let pageToken: string | undefined
-  let syncToken = options.forceFull ? undefined : config.syncToken || undefined
+  let syncToken = options.forceFull || scopeChanged ? undefined : config.syncToken || undefined
   let nextSyncToken: string | undefined
 
   do {
@@ -558,7 +563,8 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
         pageToken,
         showDeleted: true,
         singleEvents: false,
-        syncToken
+        syncToken,
+        timeMin: syncToken ? undefined : timeMin.toISOString()
       })
     } catch (error: any) {
       // Un sync token scaduto restituisce 410: ripartiamo una volta con una scansione completa.
@@ -594,7 +600,11 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
   result.daVerificare = await prisma.googleCalendarImport.count({ where: { stato: 'review' } })
   await prisma.googleCalendarConfig.update({
     where: { id: config.id },
-    data: { syncToken: nextSyncToken || config.syncToken, lastSyncAt: new Date() }
+    data: {
+      syncToken: nextSyncToken || (scopeChanged ? null : config.syncToken),
+      syncScope,
+      lastSyncAt: new Date()
+    }
   })
   return result
 }

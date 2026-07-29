@@ -1,4 +1,5 @@
 import prisma from '@/lib/prisma'
+import { syncAppuntamentoToGcal, syncEventoToGcal } from '@/lib/google-calendar-sync'
 
 type Entity = 'cliente' | 'evento' | 'appuntamento'
 
@@ -16,13 +17,14 @@ const FIELDS: Record<Entity, Set<string>> = {
   appuntamento: new Set([
     'clientePrincipaleId', 'dataAppuntamento', 'durataMinuti', 'esito',
     'riassuntoColloquio', 'noteColloquio', 'statoFunnel', 'datiMancanti',
+    'tipoEventoRichiesto', 'personePreviste', 'dataEventoRichiesta',
     'dateOpzionate', 'dataScadenzaOpzione', 'statoOpzione'
   ])
 }
 
 const DATE_FIELDS = new Set([
   'dataNascita', 'dataPrimoContatto', 'dataConfermata', 'dataAppuntamento',
-  'dataScadenzaOpzione'
+  'dataEventoRichiesta', 'dataScadenzaOpzione'
 ])
 
 export const aiToolDefinitions = [
@@ -90,6 +92,12 @@ export const aiToolDefinitions = [
     type: 'function',
     name: 'run_quality_audit',
     description: 'Trova dati mancanti o incoerenti nel gestionale senza modificarli.',
+    parameters: { type: 'object', additionalProperties: false, properties: {} }
+  },
+  {
+    type: 'function',
+    name: 'generate_management_report',
+    description: 'Genera un rapporto gestionale aggregato sugli ultimi tre anni: clienti, appuntamenti, funnel, eventi, ospiti e dati incompleti.',
     parameters: { type: 'object', additionalProperties: false, properties: {} }
   }
 ]
@@ -213,6 +221,7 @@ async function createRecord(type: Entity, rawData: unknown, actor: string, reaso
     }
     const created = await prisma.evento.create({ data: data as any })
     await writeAudit(type, created.id, 'CREATE', actor, reason, null, created)
+    syncEventoToGcal(created.id).catch(() => {})
     return created
   }
 
@@ -229,6 +238,7 @@ async function createRecord(type: Entity, rawData: unknown, actor: string, reaso
     return appointment
   })
   await writeAudit(type, created.id, 'CREATE', actor, reason, null, created)
+  syncAppuntamentoToGcal(created.id).catch(() => {})
   return created
 }
 
@@ -241,6 +251,8 @@ async function updateRecord(type: Entity, id: number, rawData: unknown, actor: s
   else if (type === 'evento') updated = await prisma.evento.update({ where: { id }, data })
   else updated = await prisma.appuntamento.update({ where: { id }, data })
   await writeAudit(type, id, 'UPDATE', actor, reason, before, updated)
+  if (type === 'evento') syncEventoToGcal(id).catch(() => {})
+  if (type === 'appuntamento') syncAppuntamentoToGcal(id).catch(() => {})
   return updated
 }
 
@@ -295,6 +307,59 @@ async function runQualityAudit() {
   }
 }
 
+async function generateManagementReport() {
+  const from = new Date()
+  from.setFullYear(from.getFullYear() - 3)
+  from.setHours(0, 0, 0, 0)
+  const [
+    clienti,
+    appuntamenti,
+    eventi,
+    funnel,
+    tipiEvento,
+    prossimiEventi,
+    invitati
+  ] = await Promise.all([
+    prisma.cliente.count({ where: { createdAt: { gte: from } } }),
+    prisma.appuntamento.count({ where: { dataAppuntamento: { gte: from } } }),
+    prisma.evento.count({
+      where: { OR: [{ dataConfermata: { gte: from } }, { createdAt: { gte: from } }] }
+    }),
+    prisma.appuntamento.groupBy({
+      by: ['statoFunnel'],
+      where: { dataAppuntamento: { gte: from } },
+      _count: { _all: true }
+    }),
+    prisma.evento.groupBy({
+      by: ['tipo'],
+      where: { OR: [{ dataConfermata: { gte: from } }, { createdAt: { gte: from } }] },
+      _count: { _all: true }
+    }),
+    prisma.evento.findMany({
+      where: { dataConfermata: { gte: new Date() }, stato: { not: 'annullato' } },
+      orderBy: { dataConfermata: 'asc' },
+      take: 10,
+      select: { id: true, titolo: true, tipo: true, dataConfermata: true, personePreviste: true }
+    }),
+    prisma.evento.aggregate({
+      where: { dataConfermata: { gte: from } },
+      _sum: { personePreviste: true }
+    })
+  ])
+  return {
+    periodoDa: from.toISOString(),
+    totali: {
+      clientiCreati: clienti,
+      appuntamenti,
+      eventi,
+      invitatiPrevisti: invitati._sum.personePreviste || 0
+    },
+    funnel: funnel.map((item) => ({ stato: item.statoFunnel || 'non_definito', totale: item._count._all })),
+    tipiEvento: tipiEvento.map((item) => ({ tipo: item.tipo, totale: item._count._all })),
+    prossimiEventi
+  }
+}
+
 export async function executeAITool(
   name: string,
   args: any,
@@ -305,6 +370,7 @@ export async function executeAITool(
   }
   if (name === 'get_record') return getRecord(entity(args.entity), Number(args.id))
   if (name === 'run_quality_audit') return runQualityAudit()
+  if (name === 'generate_management_report') return generateManagementReport()
   if (name === 'create_record' || name === 'update_record') {
     if (!context.writesEnabled) throw new Error('Scritture AI disabilitate lato server')
     if (!String(args.reason || '').trim()) throw new Error('Motivazione obbligatoria per le scritture AI')

@@ -14,6 +14,7 @@ import {
   Settings,
   Home,
   Handshake,
+  Bot,
   X,
   ChevronRight
 } from 'lucide-react'
@@ -104,6 +105,13 @@ const menuItems: Array<{ label: string; href: string; icon: any; description: st
     icon: FileText,
     description: 'Storico modifiche',
     roles: ['ADMIN', 'REPORT']
+  },
+  {
+    label: 'Assistente AI',
+    href: '/assistente-ai',
+    icon: Bot,
+    description: 'Chat operativa e report',
+    roles: ['ADMIN']
   },
   {
     label: 'Gestione Utenti',

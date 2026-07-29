@@ -181,13 +181,11 @@ export default function CalendarioPage() {
   }, [eventi, primiContatti, appuntamenti])
 
   const fetchEventi = useCallback(() => {
-    Promise.all([
-      fetch('/api/eventi').then(r => r.json()),
-      fetch('/api/appuntamenti').then(r => r.json()).catch(() => []),
-      fetch('/api/clienti').then(r => r.json()).catch(() => [])
-    ])
-      .then(([eventiData, appuntamentiData, clientiData]) => {
-        const parsedEventi = (Array.isArray(eventiData) ? eventiData : []).map((ev: any) => ({
+    fetch('/api/calendario')
+      .then(async (response) => {
+        const data = await response.json()
+        if (!response.ok) throw new Error(data.error || 'Errore caricamento calendario')
+        const parsedEventi = (Array.isArray(data.eventi) ? data.eventi : []).map((ev: any) => ({
           ...ev,
           dataConfermata: ev.dataConfermata?.split('T')[0] || null,
           dataPrimoContatto: ev.dataPrimoContatto?.split('T')[0] || null,
@@ -203,7 +201,7 @@ export default function CalendarioPage() {
           ))
         )
 
-        const parsedPrimiContatti = (Array.isArray(clientiData) ? clientiData : [])
+        const parsedPrimiContatti = (Array.isArray(data.primiContatti) ? data.primiContatti : [])
           .map((cliente: any) => ({
             ...cliente,
             tipo: 'Primo contatto',
@@ -217,7 +215,7 @@ export default function CalendarioPage() {
           .filter((cliente: any) => !registrazioniEvento.has(`${cliente.id}-${cliente.dataPrimoContatto}`))
 
         setEventi(parsedEventi)
-        setAppuntamenti(Array.isArray(appuntamentiData) ? appuntamentiData : [])
+        setAppuntamenti(Array.isArray(data.appuntamenti) ? data.appuntamenti : [])
         setPrimiContatti(parsedPrimiContatti)
       })
       .catch(() => {

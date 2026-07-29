@@ -326,6 +326,13 @@ export async function analyzeCalendarImportWithAI(
   if (!config.configured) throw new Error('Connessione AI non configurata o disabilitata')
   const imported = await prisma.googleCalendarImport.findUnique({ where: { id: importId } })
   if (!imported) throw new Error('Importazione Google Calendar non trovata')
+  if (!isImportWithinAnalysisWindow(imported.rawData)) {
+    await prisma.googleCalendarImport.update({
+      where: { id: importId },
+      data: { aiStatus: 'out_of_scope', aiAnalyzedAt: new Date() }
+    })
+    throw new Error('Il record è precedente alla finestra di analisi degli ultimi tre anni')
+  }
   const resource = await currentResource(imported)
   const input = {
     source: 'google_calendar',
@@ -404,19 +411,47 @@ export async function analyzeCalendarImportWithAI(
 
 let activeBatch: Promise<any> | null = null
 
+function isImportWithinAnalysisWindow(rawData: string) {
+  try {
+    const event = JSON.parse(rawData)
+    const value = event?.start?.dateTime || event?.start?.date
+    if (!value) return false
+    const date = new Date(value)
+    if (Number.isNaN(date.getTime())) return false
+    const cutoff = new Date()
+    cutoff.setFullYear(cutoff.getFullYear() - 3)
+    cutoff.setHours(0, 0, 0, 0)
+    return date >= cutoff
+  } catch {
+    return false
+  }
+}
+
 export function processPendingAIEnhancements(limit = Number(process.env.AI_BATCH_SIZE || '10')) {
   if (activeBatch) return activeBatch
   activeBatch = (async () => {
     const config = await getAIConfig()
     if (!config.configured) return { configured: false, processed: 0, applied: 0, review: 0, failed: 0 }
-    const pending = await prisma.googleCalendarImport.findMany({
+    const candidates = await prisma.googleCalendarImport.findMany({
       where: {
         stato: { not: 'deleted' },
         OR: [{ aiStatus: null }, { aiStatus: 'pending' }, { aiStatus: 'failed' }]
       },
       orderBy: { lastImportedAt: 'asc' },
-      take: Math.max(1, Math.min(50, limit))
+      take: 10000
     })
+    const outsideIds = candidates
+      .filter((item) => !isImportWithinAnalysisWindow(item.rawData))
+      .map((item) => item.id)
+    for (let offset = 0; offset < outsideIds.length; offset += 1000) {
+      await prisma.googleCalendarImport.updateMany({
+        where: { id: { in: outsideIds.slice(offset, offset + 1000) } },
+        data: { aiStatus: 'out_of_scope', aiAnalyzedAt: new Date() }
+      })
+    }
+    const pending = candidates
+      .filter((item) => isImportWithinAnalysisWindow(item.rawData))
+      .slice(0, Math.max(1, Math.min(50, limit)))
     const result = { configured: true, processed: 0, applied: 0, review: 0, failed: 0 }
     for (const item of pending) {
       if (item.aiStatus === 'failed') {
