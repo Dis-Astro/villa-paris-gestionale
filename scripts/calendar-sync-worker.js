@@ -1,7 +1,6 @@
 const baseUrl = (process.env.CALENDAR_SYNC_BASE_URL || 'http://127.0.0.1:3000').replace(/\/+$/, '')
 const secret = process.env.CALENDAR_SYNC_SECRET
-const rawInterval = Number(process.env.CALENDAR_SYNC_INTERVAL_SECONDS || '300')
-const intervalMs = Math.max(60, Number.isFinite(rawInterval) ? rawInterval : 300) * 1000
+const checkIntervalMs = 30 * 1000
 
 if (!secret) {
   console.error('[Calendar Worker] CALENDAR_SYNC_SECRET mancante: automazione non avviata')
@@ -14,9 +13,9 @@ async function synchronize() {
   if (running) return
   running = true
   try {
-    const response = await fetch(`${baseUrl}/api/google-calendar/import`, {
+    const response = await fetch(`${baseUrl}/api/google-calendar/import?ai=0`, {
       headers: { Authorization: `Bearer ${secret}` },
-      signal: AbortSignal.timeout(Math.min(intervalMs - 1000, 240000))
+      signal: AbortSignal.timeout(240000)
     })
     const result = await response.json()
     if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`)
@@ -32,9 +31,37 @@ async function synchronize() {
   }
 }
 
-console.log(`[Calendar Worker] attivo ogni ${Math.round(intervalMs / 1000)} secondi su ${baseUrl}`)
-synchronize()
-const timer = setInterval(synchronize, intervalMs)
+let lastRunDate = ''
+
+function romeClock() {
+  const parts = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Rome',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date())
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return {
+    date: `${value.year}-${value.month}-${value.day}`,
+    hour: value.hour,
+    minute: value.minute
+  }
+}
+
+function checkSchedule() {
+  const clock = romeClock()
+  if (clock.hour === '00' && clock.minute === '01' && lastRunDate !== clock.date) {
+    lastRunDate = clock.date
+    synchronize()
+  }
+}
+
+console.log(`[Calendar Worker] sincronizzazione giornaliera alle 00:01 Europe/Rome su ${baseUrl}`)
+checkSchedule()
+const timer = setInterval(checkSchedule, checkIntervalMs)
 
 function stop() {
   clearInterval(timer)

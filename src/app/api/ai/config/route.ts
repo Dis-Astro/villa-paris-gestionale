@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { requireAuth } from '@/lib/auth'
 import { getAIConfig, safeAIConfig, saveAIConfig } from '@/lib/ai-config'
+import { testAIConnection } from '@/lib/ai-provider'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -43,6 +44,8 @@ export async function POST(req: NextRequest) {
   try {
     const config = await getAIConfig()
     if (!config.configured || !config.apiKey) throw new Error('Salva e abilita prima la configurazione AI')
+    return NextResponse.json(await testAIConnection(config))
+    /*
     const response = await fetch(`${config.baseUrl}/responses`, {
       method: 'POST',
       headers: {
@@ -60,6 +63,7 @@ export async function POST(req: NextRequest) {
     const result = await response.json()
     if (!response.ok) throw new Error(result?.error?.message || `Errore AI HTTP ${response.status}`)
     return NextResponse.json({ success: true, message: 'Connessione AI riuscita', responseId: result.id || null })
+    */
   } catch (error: any) {
     return NextResponse.json({ error: error.message || 'Test AI non riuscito' }, { status: 400 })
   }

@@ -1,12 +1,12 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useState } from 'react'
+import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import { Calendar, Clock, Plus, Save, Search, UserRound, ArrowRight } from 'lucide-react'
+import { Calendar, Plus, Save, Search, UserRound, ArrowRight, Bot, Mic, Square, Upload, Check } from 'lucide-react'
 
 type Appuntamento = any
 
@@ -21,6 +21,37 @@ function toInputDateTime(value?: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function encodeWav(chunks: Float32Array[], sampleRate: number) {
+  const length = chunks.reduce((sum, chunk) => sum + chunk.length, 0)
+  const buffer = new ArrayBuffer(44 + length * 2)
+  const view = new DataView(buffer)
+  const writeText = (offset: number, value: string) => {
+    for (let i = 0; i < value.length; i++) view.setUint8(offset + i, value.charCodeAt(i))
+  }
+  writeText(0, 'RIFF')
+  view.setUint32(4, 36 + length * 2, true)
+  writeText(8, 'WAVE')
+  writeText(12, 'fmt ')
+  view.setUint32(16, 16, true)
+  view.setUint16(20, 1, true)
+  view.setUint16(22, 1, true)
+  view.setUint32(24, sampleRate, true)
+  view.setUint32(28, sampleRate * 2, true)
+  view.setUint16(32, 2, true)
+  view.setUint16(34, 16, true)
+  writeText(36, 'data')
+  view.setUint32(40, length * 2, true)
+  let offset = 44
+  for (const chunk of chunks) {
+    for (let i = 0; i < chunk.length; i++) {
+      const sample = Math.max(-1, Math.min(1, chunk[i]))
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
+      offset += 2
+    }
+  }
+  return new Blob([buffer], { type: 'audio/wav' })
+}
+
 function AppuntamentiPageContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -33,6 +64,15 @@ function AppuntamentiPageContent() {
   const [form, setForm] = useState<any>(null)
   const [status, setStatus] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [audioFile, setAudioFile] = useState<File | null>(null)
+  const [isRecording, setIsRecording] = useState(false)
+  const [audioBusy, setAudioBusy] = useState(false)
+  const [audioConsent, setAudioConsent] = useState(false)
+  const [audioAnalysis, setAudioAnalysis] = useState<any>(null)
+  const audioContextRef = useRef<AudioContext | null>(null)
+  const audioProcessorRef = useRef<ScriptProcessorNode | null>(null)
+  const audioStreamRef = useRef<MediaStream | null>(null)
+  const audioChunksRef = useRef<Float32Array[]>([])
 
   const [newForm, setNewForm] = useState({
     nome: '',
@@ -80,19 +120,33 @@ function AppuntamentiPageContent() {
       const data = await res.json()
       setForm({
         ...data,
-        dataAppuntamento: toInputDateTime(data.dataAppuntamento)
+        dataAppuntamento: toInputDateTime(data.dataAppuntamento),
+        dataEventoRichiesta: data.dataEventoRichiesta?.slice(0, 10) || ''
       })
+      setAudioAnalysis(data.analisiAudioAI || null)
+      setAudioFile(null)
     }
     loadDetail()
   }, [selectedId])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
-    if (!q) return list
-    return list.filter((a) => {
+    if (q) return list.filter((a) => {
       const nome = `${a.clientePrincipale?.nome || ''} ${a.clientePrincipale?.cognome || ''}`.toLowerCase()
       const titolo = `${a.riassuntoColloquio || ''} ${a.noteColloquio || ''}`.toLowerCase()
       return nome.includes(q) || titolo.includes(q)
+    })
+
+    const now = new Date()
+    const monday = new Date(now)
+    const day = (now.getDay() + 6) % 7
+    monday.setDate(now.getDate() - day)
+    monday.setHours(0, 0, 0, 0)
+    const nextMonday = new Date(monday)
+    nextMonday.setDate(monday.getDate() + 7)
+    return list.filter((item) => {
+      const date = new Date(item.dataAppuntamento)
+      return date >= monday && date < nextMonday
     })
   }, [list, search])
 
@@ -145,6 +199,9 @@ function AppuntamentiPageContent() {
           noteColloquio: form.noteColloquio,
           statoFunnel: form.statoFunnel,
           datiMancanti: form.datiMancanti,
+          tipoEventoRichiesto: form.tipoEventoRichiesto,
+          personePreviste: form.personePreviste,
+          dataEventoRichiesta: form.dataEventoRichiesta,
           dateOpzionate: form.dateOpzionate || [],
           statoOpzione: form.statoOpzione
         })
@@ -157,6 +214,104 @@ function AppuntamentiPageContent() {
     } finally {
       setIsSaving(false)
       setTimeout(() => setStatus(''), 2500)
+    }
+  }
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+      const context = new AudioContext()
+      const source = context.createMediaStreamSource(stream)
+      const processor = context.createScriptProcessor(4096, 1, 1)
+      const silent = context.createGain()
+      silent.gain.value = 0
+      audioChunksRef.current = []
+      processor.onaudioprocess = (event) => {
+        audioChunksRef.current.push(new Float32Array(event.inputBuffer.getChannelData(0)))
+      }
+      source.connect(processor)
+      processor.connect(silent)
+      silent.connect(context.destination)
+      audioContextRef.current = context
+      audioProcessorRef.current = processor
+      audioStreamRef.current = stream
+      setAudioFile(null)
+      setIsRecording(true)
+      setStatus('Registrazione in corso…')
+    } catch {
+      setStatus('Impossibile accedere al microfono. Controlla i permessi del browser.')
+    }
+  }
+
+  const stopRecording = async () => {
+    const context = audioContextRef.current
+    audioProcessorRef.current?.disconnect()
+    audioStreamRef.current?.getTracks().forEach((track) => track.stop())
+    if (context) {
+      const blob = encodeWav(audioChunksRef.current, context.sampleRate)
+      setAudioFile(new File([blob], `appuntamento-${form?.id || 'audio'}.wav`, { type: 'audio/wav' }))
+      await context.close()
+    }
+    audioContextRef.current = null
+    audioProcessorRef.current = null
+    audioStreamRef.current = null
+    setIsRecording(false)
+    setStatus('Registrazione pronta per l’analisi')
+  }
+
+  const analyzeRecording = async () => {
+    if (!form?.id || !audioFile) return
+    if (!audioConsent) {
+      setStatus('Conferma il consenso alla registrazione e all’analisi')
+      return
+    }
+    setAudioBusy(true)
+    try {
+      const data = new FormData()
+      data.append('appointmentId', String(form.id))
+      data.append('consent', 'true')
+      data.append('audio', audioFile)
+      const res = await fetch('/api/appuntamenti/recording', { method: 'POST', body: data })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Analisi non riuscita')
+      setAudioAnalysis({
+        transcription: result.transcription,
+        summary: result.summary,
+        confidence: result.confidence,
+        warnings: result.warnings,
+        fields: result.proposedChanges
+      })
+      setStatus('Analisi completata: controlla l’anteprima prima di applicarla')
+    } catch (error: any) {
+      setStatus(`Errore analisi audio: ${error.message || 'sconosciuto'}`)
+    } finally {
+      setAudioBusy(false)
+    }
+  }
+
+  const applyRecordingAnalysis = async () => {
+    if (!form?.id) return
+    setAudioBusy(true)
+    try {
+      const res = await fetch('/api/appuntamenti/recording', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ appointmentId: form.id })
+      })
+      const result = await res.json()
+      if (!res.ok) throw new Error(result.error || 'Applicazione non riuscita')
+      setStatus('Dati della registrazione applicati alla scheda appuntamento')
+      const detail = await fetch(`/api/appuntamenti?id=${form.id}`).then((response) => response.json())
+      setForm({
+        ...detail,
+        dataAppuntamento: toInputDateTime(detail.dataAppuntamento),
+        dataEventoRichiesta: detail.dataEventoRichiesta?.slice(0, 10) || ''
+      })
+      await fetchAppuntamenti()
+    } catch (error: any) {
+      setStatus(`Errore: ${error.message || 'applicazione non riuscita'}`)
+    } finally {
+      setAudioBusy(false)
     }
   }
 
@@ -254,6 +409,9 @@ function AppuntamentiPageContent() {
         <Card className="lg:col-span-1" data-testid="appuntamenti-list-card">
           <CardHeader>
             <CardTitle className="text-base">Appuntamenti</CardTitle>
+            <p className="text-xs text-gray-500">
+              {search.trim() ? 'Ricerca su tutti gli appuntamenti' : 'Settimana corrente · usa la ricerca per consultare lo storico'}
+            </p>
             <div className="relative">
               <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <Input className="pl-9" placeholder="Cerca cliente o note..." value={search} onChange={(e) => setSearch(e.target.value)} data-testid="search-app-input" />
@@ -332,6 +490,34 @@ function AppuntamentiPageContent() {
                   </div>
                 </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <div>
+                    <label className="text-xs text-gray-600">Tipo evento richiesto</label>
+                    <Input
+                      value={form.tipoEventoRichiesto || ''}
+                      onChange={(e) => setForm((p: any) => ({ ...p, tipoEventoRichiesto: e.target.value }))}
+                      placeholder="Es. matrimonio, battesimo..."
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Invitati previsti</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={form.personePreviste ?? ''}
+                      onChange={(e) => setForm((p: any) => ({ ...p, personePreviste: e.target.value }))}
+                    />
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-600">Data evento richiesta</label>
+                    <Input
+                      type="date"
+                      value={form.dataEventoRichiesta || ''}
+                      onChange={(e) => setForm((p: any) => ({ ...p, dataEventoRichiesta: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label className="text-xs text-gray-600">Riassunto colloquio</label>
                   <Textarea rows={2} value={form.riassuntoColloquio || ''} onChange={(e) => setForm((p: any) => ({ ...p, riassuntoColloquio: e.target.value }))} data-testid="app-detail-summary" />
@@ -339,6 +525,107 @@ function AppuntamentiPageContent() {
                 <div>
                   <label className="text-xs text-gray-600">Note appuntamento</label>
                   <Textarea rows={3} value={form.noteColloquio || ''} onChange={(e) => setForm((p: any) => ({ ...p, noteColloquio: e.target.value }))} data-testid="app-detail-notes" />
+                </div>
+
+                <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-4 space-y-3" data-testid="appointment-audio-ai">
+                  <div>
+                    <p className="flex items-center gap-2 text-sm font-semibold text-violet-900">
+                      <Bot className="h-4 w-4" /> Compila l’appuntamento dalla registrazione
+                    </p>
+                    <p className="mt-1 text-xs text-violet-700">
+                      Gemini trascrive il colloquio e propone i campi. Nulla viene applicato senza la tua conferma.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    {!isRecording ? (
+                      <Button type="button" variant="outline" size="sm" onClick={startRecording} disabled={audioBusy}>
+                        <Mic className="mr-2 h-4 w-4" /> Registra
+                      </Button>
+                    ) : (
+                      <Button type="button" variant="outline" size="sm" onClick={stopRecording}>
+                        <Square className="mr-2 h-4 w-4 fill-current" /> Ferma
+                      </Button>
+                    )}
+                    <label className="inline-flex cursor-pointer items-center rounded-md border border-gray-200 bg-white px-3 py-1.5 text-sm font-medium hover:bg-gray-50">
+                      <Upload className="mr-2 h-4 w-4" /> Carica audio
+                      <input
+                        className="hidden"
+                        type="file"
+                        accept=".wav,.mp3,.aac,.ogg,.flac,audio/wav,audio/mpeg,audio/aac,audio/ogg,audio/flac"
+                        onChange={(event) => setAudioFile(event.target.files?.[0] || null)}
+                      />
+                    </label>
+                  </div>
+
+                  {audioFile && <p className="text-xs text-gray-600">Pronto: {audioFile.name}</p>}
+                  {form.registrazioneAudioPath && (
+                    <audio className="w-full" controls preload="none" src={`/api/appuntamenti/recording?appointmentId=${form.id}`}>
+                      Il browser non supporta la riproduzione audio.
+                    </audio>
+                  )}
+
+                  <label className="flex items-start gap-2 text-xs text-gray-700">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5"
+                      checked={audioConsent}
+                      onChange={(event) => setAudioConsent(event.target.checked)}
+                    />
+                    Confermo che le persone registrate sono state informate e autorizzo l’analisi della registrazione con Gemini.
+                  </label>
+
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={analyzeRecording}
+                    disabled={!audioFile || !audioConsent || audioBusy || isRecording}
+                    className="bg-violet-600 hover:bg-violet-700"
+                  >
+                    <Bot className="mr-2 h-4 w-4" />
+                    {audioBusy ? 'Analisi in corso...' : 'Trascrivi e prepara la compilazione'}
+                  </Button>
+
+                  {audioAnalysis && (
+                    <div className="space-y-3 rounded-lg border border-violet-200 bg-white p-3 text-sm">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Riassunto proposto</p>
+                        <p className="mt-1 text-gray-800">{audioAnalysis.summary || 'Nessun riassunto'}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Trascrizione</p>
+                        <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap text-gray-700">
+                          {audioAnalysis.transcription || form.trascrizioneAI || 'Non disponibile'}
+                        </p>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-wide text-gray-500">Campi che verranno compilati</p>
+                        <dl className="mt-1 grid grid-cols-1 gap-1 text-xs sm:grid-cols-2">
+                          {Object.entries(audioAnalysis.fields || {}).map(([key, value]) => (
+                            <div key={key} className="rounded bg-gray-50 px-2 py-1">
+                              <dt className="font-medium text-gray-600">{key}</dt>
+                              <dd className="break-words text-gray-800">
+                                {Array.isArray(value) ? value.join(', ') || '—' : value == null || value === '' ? '—' : String(value)}
+                              </dd>
+                            </div>
+                          ))}
+                        </dl>
+                      </div>
+                      {audioAnalysis.warnings?.length > 0 && (
+                        <div className="rounded bg-amber-50 p-2 text-xs text-amber-800">
+                          {audioAnalysis.warnings.join(' · ')}
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-xs text-gray-500">
+                          Affidabilità: {typeof audioAnalysis.confidence === 'number' ? `${Math.round(audioAnalysis.confidence * 100)}%` : 'n/d'}
+                        </span>
+                        <Button type="button" size="sm" onClick={applyRecordingAnalysis} disabled={audioBusy}>
+                          <Check className="mr-2 h-4 w-4" /> Applica alla scheda
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </div>
 
                 <div className="border rounded-lg p-3" data-testid="app-date-options-box">

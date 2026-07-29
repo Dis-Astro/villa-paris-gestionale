@@ -163,6 +163,17 @@ model Appuntamento {
   numeroProgressivo   Int?
   statoFunnel         String?             @default("in_trattativa")
   datiMancanti        String?
+  tipoEventoRichiesto String?
+  personePreviste     Int?
+  dataEventoRichiesta DateTime?
+
+  registrazioneAudioPath String?
+  registrazioneAudioNome String?
+  registrazioneAudioMime String?
+  trascrizioneAI         String?
+  analisiAudioAI         String?
+  analisiAudioStato      String?
+  analisiAudioAt         DateTime?
 
   dateOpzionate       String?
   dataScadenzaOpzione DateTime?
@@ -183,6 +194,7 @@ model Appuntamento {
   @@index([clientePrincipaleId])
   @@index([dataAppuntamento])
   @@index([statoFunnel])
+  @@index([analisiAudioStato])
   @@index([gcalEventId])
 }
 

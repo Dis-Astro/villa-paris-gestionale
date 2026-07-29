@@ -25,7 +25,9 @@ import {
   Clock,
   ExternalLink,
   Bot,
-  Play
+  Play,
+  Download,
+  Archive
 } from 'lucide-react'
 
 type GCalChange = {
@@ -69,6 +71,10 @@ export default function ImpostazioniPage() {
   const [aiOperations, setAiOperations] = useState<any[]>([])
   const [aiLoading, setAiLoading] = useState(false)
   const [aiStatus, setAiStatus] = useState('')
+  const [historyBefore, setHistoryBefore] = useState(`${new Date().getFullYear()}-01-01`)
+  const [historyPreview, setHistoryPreview] = useState<any>(null)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyStatus, setHistoryStatus] = useState('')
   const [aiForm, setAiForm] = useState({
     provider: 'openai',
     model: 'gpt-5.6-terra',
@@ -266,6 +272,46 @@ export default function ImpostazioniPage() {
     }
   }
 
+  const handleHistoryPreview = async () => {
+    setHistoryLoading(true)
+    setHistoryStatus('')
+    try {
+      const res = await fetch(`/api/storico?before=${encodeURIComponent(historyBefore)}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setHistoryPreview(data)
+    } catch (error: any) {
+      setHistoryStatus(`Errore: ${error.message || 'anteprima storico non riuscita'}`)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
+  const handleHistoryArchive = async () => {
+    const phrase = window.prompt(
+      `Verranno rimossi dal gestionale i record precedenti al ${historyBefore}, dopo aver creato il file storico. Digita ARCHIVIA_STORICO per confermare.`
+    )
+    if (phrase !== 'ARCHIVIA_STORICO') return
+    setHistoryLoading(true)
+    setHistoryStatus('')
+    try {
+      const res = await fetch('/api/storico', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ before: historyBefore, confirm: phrase })
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error)
+      setHistoryStatus(`Archivio creato: ${data.removed.eventi} eventi e ${data.removed.appuntamenti} appuntamenti alleggeriti`)
+      setHistoryPreview(null)
+      window.location.href = data.downloadUrl
+    } catch (error: any) {
+      setHistoryStatus(`Errore: ${error.message || 'archiviazione non riuscita'}`)
+    } finally {
+      setHistoryLoading(false)
+    }
+  }
+
   const handleReviewAI = async (operationId: string, action: 'approve' | 'reject') => {
     try {
       const res = await fetch('/api/ai/operations', {
@@ -306,14 +352,14 @@ export default function ImpostazioniPage() {
     setSyncErrors(null)
     setGcalStatus('')
     try {
-      const res = await fetch('/api/google-calendar/sync', { method: 'POST' })
+      const res = await fetch('/api/google-calendar/import?ai=0', { method: 'POST' })
       const data = await res.json()
       if (res.ok) {
-        setSyncResult({ ...data.synced, imported: data.imported })
+        setSyncResult(data)
         setSyncErrors(data.erroriDettaglio || null)
-        setGcalStatus(data.synced?.errori > 0
-          ? `Sincronizzazione completata con ${data.synced.errori} errori`
-          : 'Sincronizzazione completata!')
+        setGcalStatus(data.errori > 0
+          ? `Importazione completata con ${data.errori} errori`
+          : 'Importazione delle novità completata!')
         fetchGcalStatus()
       } else {
         setGcalStatus(`Errore: ${data.error}`)
@@ -492,7 +538,7 @@ export default function ImpostazioniPage() {
                     data-testid="gcal-sync-btn"
                   >
                     <RefreshCw className={`w-4 h-4 mr-2 ${gcalSyncing ? 'animate-spin' : ''}`} />
-                    {gcalSyncing ? 'Importazione e sincronizzazione...' : 'Importa e sincronizza tutto'}
+                    {gcalSyncing ? 'Importazione novità...' : 'Importa novità da Google'}
                   </Button>
                   <Button
                     variant="outline"
@@ -538,20 +584,14 @@ export default function ImpostazioniPage() {
                 {/* Sync result */}
                 {syncResult && (
                   <div className="p-3 rounded-lg border bg-blue-50 text-sm" data-testid="gcal-sync-result">
-                    <p className="font-medium text-blue-800 mb-1">Risultato sincronizzazione bidirezionale:</p>
-                    {syncResult.imported && (
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-green-700 mb-3 pb-3 border-b border-blue-200">
-                        <span>Letti da Google: {syncResult.imported.letti}</span>
-                        <span>Importati: {syncResult.imported.importati}</span>
-                        <span>Aggiornati da Google: {syncResult.imported.aggiornati}</span>
-                        <span>Da verificare: {syncResult.imported.daVerificare}</span>
-                      </div>
-                    )}
+                    <p className="font-medium text-blue-800 mb-1">Risultato importazione da Google:</p>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-blue-700">
-                      <span>Nuovi eventi: {syncResult.eventi}</span>
-                      <span>Nuovi appunt.: {syncResult.appuntamenti}</span>
+                      <span>Letti: {syncResult.letti}</span>
+                      <span>Nuovi: {syncResult.importati}</span>
                       <span>Aggiornati: {syncResult.aggiornati}</span>
-                      <span>Saltati: {syncResult.skipped}</span>
+                      <span>Invariati: {syncResult.invariati}</span>
+                      <span>Archiviati: {syncResult.registrati}</span>
+                      <span>Da verificare: {syncResult.daVerificare}</span>
                       {syncResult.errori > 0 && <span className="text-red-600 col-span-2">Errori: {syncResult.errori}</span>}
                     </div>
                   </div>
@@ -662,6 +702,59 @@ export default function ImpostazioniPage() {
       )}
 
       {role === 'ADMIN' && (
+        <Card className="border-slate-200" data-testid="history-card">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Archive className="h-5 w-5 text-slate-600" /> Storico leggero
+            </CardTitle>
+            <CardDescription>
+              Esporta appuntamenti ed eventi passati in un file JSON completo e, solo dopo conferma, li rimuove dai dati operativi.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="flex flex-wrap items-end gap-2">
+              <div>
+                <label className="mb-1 block text-xs text-gray-600">Archivia record precedenti al</label>
+                <Input type="date" value={historyBefore} onChange={(event) => {
+                  setHistoryBefore(event.target.value)
+                  setHistoryPreview(null)
+                }} />
+              </div>
+              <Button variant="outline" onClick={handleHistoryPreview} disabled={historyLoading}>
+                {historyLoading ? 'Analisi...' : 'Calcola anteprima'}
+              </Button>
+            </div>
+            {historyStatus && <p className="rounded bg-slate-50 px-3 py-2 text-sm text-slate-700">{historyStatus}</p>}
+            {historyPreview && (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+                <p className="font-medium text-amber-900">Nessun dato è stato ancora rimosso</p>
+                <div className="mt-2 flex flex-wrap gap-4 text-amber-800">
+                  <span>Eventi: {historyPreview.eventi}</span>
+                  <span>Appuntamenti: {historyPreview.appuntamenti}</span>
+                  <span>Voci “ristorante” escluse: {historyPreview.esclusiRistorante}</span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="outline" size="sm" asChild>
+                    <a href={`/api/storico?before=${encodeURIComponent(historyBefore)}&download=1`}>
+                      <Download className="mr-2 h-4 w-4" /> Scarica anteprima
+                    </a>
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={handleHistoryArchive}
+                    disabled={historyLoading || (!historyPreview.eventi && !historyPreview.appuntamenti)}
+                    className="bg-amber-700 hover:bg-amber-800"
+                  >
+                    <Archive className="mr-2 h-4 w-4" /> Crea file e alleggerisci
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {role === 'ADMIN' && (
         <Card className="border-violet-200" data-testid="ai-card">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -669,7 +762,7 @@ export default function ImpostazioniPage() {
               Controllore AI
             </CardTitle>
             <CardDescription>
-              Analizza le importazioni, completa i dati espliciti, rileva problemi e propone correzioni tracciate
+              Solo Administrator: analizza le importazioni, rileva problemi e propone correzioni tracciate
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">

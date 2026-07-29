@@ -52,6 +52,7 @@ COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
 
 # Copy entrypoint
 COPY docker/entrypoint.sh ./entrypoint.sh
+COPY scripts/calendar-sync-worker.js ./scripts/calendar-sync-worker.js
 RUN chmod +x ./entrypoint.sh
 
 # Create directories for uploads

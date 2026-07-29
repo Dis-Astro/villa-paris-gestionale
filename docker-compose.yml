@@ -34,6 +34,8 @@ services:
       GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
       GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
       CALENDAR_SYNC_SECRET: ${CALENDAR_SYNC_SECRET:-}
+      RECORDINGS_DIR: /app/storage/recordings
+      HISTORY_DIR: /app/storage/history
       AI_ENABLED: ${AI_ENABLED:-false}
       AI_PROVIDER: ${AI_PROVIDER:-openai}
       AI_API_KEY: ${AI_API_KEY:-}
@@ -52,40 +54,31 @@ services:
         condition: service_healthy
     volumes:
       - uploads_data:/app/public/uploads
+      - recordings_data:/app/storage/recordings
+      - history_data:/app/storage/history
     networks:
       - villaparis-network
 
   calendar-sync:
-    image: curlimages/curl:8.12.1
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: villaparis-calendar-sync
     restart: unless-stopped
     environment:
       CALENDAR_SYNC_SECRET: ${CALENDAR_SYNC_SECRET:-}
-      CALENDAR_SYNC_INTERVAL_SECONDS: ${CALENDAR_SYNC_INTERVAL_SECONDS:-300}
+      CALENDAR_SYNC_BASE_URL: http://app:3000
     depends_on:
       - app
-    command:
-      - /bin/sh
-      - -c
-      - |
-        if [ -z "$$CALENDAR_SYNC_SECRET" ]; then
-          echo "CALENDAR_SYNC_SECRET non configurato: automazione Calendar in attesa"
-        fi
-        sleep 15
-        while true; do
-          if [ -n "$$CALENDAR_SYNC_SECRET" ]; then
-            curl --silent --show-error --fail \
-              -H "Authorization: Bearer $$CALENDAR_SYNC_SECRET" \
-              http://app:3000/api/google-calendar/import || true
-          fi
-          sleep "$${CALENDAR_SYNC_INTERVAL_SECONDS:-300}"
-        done
+    entrypoint: ["node", "scripts/calendar-sync-worker.js"]
     networks:
       - villaparis-network
 
 volumes:
   postgres_data:
   uploads_data:
+  recordings_data:
+  history_data:
 
 networks:
   villaparis-network:

@@ -175,14 +175,25 @@ model Appuntamento {
   clientePrincipaleId Int
   clientePrincipale   Cliente @relation("ClientePrincipaleAppuntamenti", fields: [clientePrincipaleId], references: [id], onDelete: Cascade)
 
-  dataAppuntamento   DateTime
-  durataMinuti       Int?     @default(0)
-  esito              String?
-  riassuntoColloquio String?
-  noteColloquio      String?
-  numeroProgressivo  Int?
-  statoFunnel        String?  @default("in_trattativa")
-  datiMancanti       String?
+  dataAppuntamento    DateTime
+  durataMinuti        Int?      @default(0)
+  esito               String?
+  riassuntoColloquio  String?
+  noteColloquio       String?
+  numeroProgressivo   Int?
+  statoFunnel         String?   @default("in_trattativa")
+  datiMancanti        String?
+  tipoEventoRichiesto String?
+  personePreviste     Int?
+  dataEventoRichiesta DateTime?
+
+  registrazioneAudioPath String?
+  registrazioneAudioNome String?
+  registrazioneAudioMime String?
+  trascrizioneAI         String?
+  analisiAudioAI         Json?
+  analisiAudioStato      String?
+  analisiAudioAt         DateTime?
 
   dateOpzionate       Json?
   dataScadenzaOpzione DateTime?
@@ -203,6 +214,7 @@ model Appuntamento {
   @@index([clientePrincipaleId])
   @@index([dataAppuntamento])
   @@index([statoFunnel])
+  @@index([analisiAudioStato])
   @@index([gcalEventId])
 }
 

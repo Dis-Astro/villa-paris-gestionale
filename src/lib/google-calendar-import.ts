@@ -129,6 +129,24 @@ function extractEmail(text: string) {
   return text.match(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i)?.[0].toLowerCase() || null
 }
 
+export function isTechnicalCalendarEntry(event: GoogleEvent) {
+  if (event.extendedProperties?.private?.villaParisType) return false
+  const summary = (event.summary || '').trim().toLowerCase()
+  const description = (event.description || '').toLowerCase()
+  const combined = `${summary}\n${description}`
+  const hasContact = Boolean(
+    extractEmail(combined) ||
+    extractPhone(combined) ||
+    event.attendees?.some((attendee) => !attendee.self && attendee.email) ||
+    /\b(cliente|contatto|nome cliente|sposa|sposo|festeggiat[oa])\s*:/i.test(combined)
+  )
+  if (hasContact) return false
+
+  const internalOperation = /\b(staff|personale|turno|cucina|manutenzione|fornitore|consegna|magazzino|pulizie|tecnico|allestimento interno)\b/i
+  const restaurantCapacity = /\b(ristorante|pranzo|cena|tavol[oa])\b.*\b(pax|coperti|posti)\b|\b(pax|coperti)\b.*\b(ristorante|pranzo|cena|tavol[oa])\b/i
+  return internalOperation.test(combined) || restaurantCapacity.test(combined)
+}
+
 export function parseGoogleCalendarEvent(event: GoogleEvent): ParsedGoogleEvent | null {
   const start = eventStart(event)
   if (!event.id || !start) return null
@@ -305,12 +323,64 @@ async function importOne(event: GoogleEvent) {
     return 'invariato' as const
   }
 
+  if (previous?.stato === 'archived_file') {
+    await prisma.googleCalendarImport.update({
+      where: { id: previous.id },
+      data: {
+        fingerprint: nextFingerprint,
+        rawData: JSON.stringify(event),
+        lastImportedAt: new Date(),
+        warning: previous.warning || 'Record conservato esclusivamente nello storico scaricabile',
+        aiStatus: 'not_required'
+      }
+    })
+    return 'invariato' as const
+  }
+
   const parsed = parseGoogleCalendarEvent(event)
   if (!parsed) return 'invariato' as const
 
   const linkedEvento = await prisma.evento.findFirst({ where: { gcalEventId: event.id } })
   const linkedAppuntamento = linkedEvento ? null : await prisma.appuntamento.findFirst({ where: { gcalEventId: event.id } })
   const existingType: ResourceType | null = linkedEvento ? 'evento' : linkedAppuntamento ? 'appuntamento' : null
+
+  if (isTechnicalCalendarEntry(event) && !previous?.risorsaId && !existingType) {
+    await prisma.googleCalendarImport.upsert({
+      where: { gcalEventId: event.id },
+      create: {
+        gcalEventId: event.id,
+        recurringEventId: event.recurringEventId || null,
+        iCalUID: event.iCalUID || null,
+        tipoRisorsa: 'non_classificato',
+        risorsaId: null,
+        createdResource: false,
+        stato: 'archived_technical',
+        confidence: 1,
+        fingerprint: nextFingerprint,
+        rawData: JSON.stringify(event),
+        warning: 'Voce tecnica interna: conservata in archivio senza creare cliente, appuntamento o evento',
+        aiStatus: 'not_required'
+      },
+      update: {
+        recurringEventId: event.recurringEventId || null,
+        iCalUID: event.iCalUID || null,
+        tipoRisorsa: 'non_classificato',
+        risorsaId: null,
+        createdResource: false,
+        stato: 'archived_technical',
+        confidence: 1,
+        fingerprint: nextFingerprint,
+        rawData: JSON.stringify(event),
+        warning: 'Voce tecnica interna: conservata in archivio senza creare cliente, appuntamento o evento',
+        aiStatus: 'not_required',
+        aiAnalyzedAt: null,
+        lastImportedAt: new Date(),
+        deletedAt: null
+      }
+    })
+    return previous ? 'aggiornato' as const : 'registrato' as const
+  }
+
   const tipoRisorsa = previous?.tipoRisorsa === 'evento' || previous?.tipoRisorsa === 'appuntamento'
     ? previous.tipoRisorsa as ResourceType
     : existingType || parsed.tipoRisorsa

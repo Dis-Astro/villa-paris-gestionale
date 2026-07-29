@@ -1,5 +1,6 @@
 import prisma from '@/lib/prisma'
 import { getAIConfig, type AIConfig } from '@/lib/ai-config'
+import { requestStructuredAI } from '@/lib/ai-provider'
 
 type AIAnalysis = {
   resourceType: 'evento' | 'appuntamento'
@@ -81,6 +82,25 @@ async function requestAnalysis(config: AIConfig, input: unknown): Promise<{ raw:
   if (!config.apiKey) throw new Error('Chiave API AI non configurata')
   const inputText = JSON.stringify(input)
   const safeInput = config.includePersonalData ? inputText : redactPersonalData(inputText)
+  return requestStructuredAI(config, {
+    name: 'villa_paris_calendar_analysis',
+    schema: outputSchema,
+    instructions: [
+      'Sei il controllore dati del gestionale eventi Villa Paris.',
+      'Analizza esclusivamente le informazioni fornite.',
+      'Non inventare mai nomi, contatti, date, quantità o dettagli mancanti.',
+      'Correggi refusi e normalizza i dati solo quando il significato è inequivocabile.',
+      'Diciture operative senza un vero cliente, per esempio "Ristorante 6 pax+2", non sono nomi di persone.',
+      'Per note interne, ristorante, cucina, staff, turni, manutenzione o conteggi pax senza cliente, non proporre un appuntamento cliente.',
+      'Usa null per ogni campo non esplicitamente ricavabile.',
+      'shouldApply deve essere true soltanto se le modifiche sono supportate dal testo originale.',
+      'Segnala contraddizioni, ambiguità e dati sospetti in warnings.',
+      'Mantieni note operative utili, senza aggiungere supposizioni.'
+    ].join('\n'),
+    input: safeInput
+  }) as Promise<{ raw: any; parsed: AIAnalysis }>
+
+  /*
   const response = await fetch(`${config.baseUrl}/responses`, {
     method: 'POST',
     headers: {
@@ -121,6 +141,7 @@ async function requestAnalysis(config: AIConfig, input: unknown): Promise<{ raw:
   }
   const parsed = JSON.parse(extractResponseText(raw)) as AIAnalysis
   return { raw, parsed }
+  */
 }
 
 function validDate(value: string | null) {

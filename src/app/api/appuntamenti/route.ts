@@ -369,6 +369,12 @@ export async function PUT(req: NextRequest) {
     if (has(body, 'noteColloquio')) updateData.noteColloquio = body.noteColloquio || null
     if (has(body, 'statoFunnel')) updateData.statoFunnel = body.statoFunnel || null
     if (has(body, 'datiMancanti')) updateData.datiMancanti = body.datiMancanti || null
+    if (has(body, 'tipoEventoRichiesto')) updateData.tipoEventoRichiesto = body.tipoEventoRichiesto || null
+    if (has(body, 'personePreviste')) {
+      const persone = Number(body.personePreviste)
+      updateData.personePreviste = Number.isFinite(persone) && persone >= 0 ? Math.trunc(persone) : null
+    }
+    if (has(body, 'dataEventoRichiesta')) updateData.dataEventoRichiesta = toDateOrNull(body.dataEventoRichiesta)
     if (has(body, 'operatoreId')) updateData.operatoreId = body.operatoreId || null
     if (has(body, 'clientePrincipaleId')) updateData.clientePrincipaleId = Number(body.clientePrincipaleId)
 

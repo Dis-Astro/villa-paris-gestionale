@@ -67,7 +67,8 @@ COOKIE_SECURE="true"
 | `GOOGLE_CLIENT_ID` | Opzionale, OAuth Google Calendar |
 | `GOOGLE_CLIENT_SECRET` | Opzionale, OAuth Google Calendar |
 | `CALENDAR_SYNC_SECRET` | Token Bearer per l’importazione automatica Google Calendar |
-| `CALENDAR_SYNC_INTERVAL_SECONDS` | Frequenza del controllo automatico, predefinita a 300 secondi |
+| `RECORDINGS_DIR` | Cartella persistente per le registrazioni degli appuntamenti |
+| `HISTORY_DIR` | Cartella persistente per i file storici scaricabili |
 | `AI_ENABLED` | Abilita l’analisi AI server-side |
 | `AI_CONFIG_ENCRYPTION_KEY` | Segreto per cifrare la chiave AI salvata dal pannello; se assente usa `JWT_SECRET` |
 | `AI_API_KEY` | Chiave del provider AI, mai esposta al browser |
@@ -87,16 +88,17 @@ date, orari, durata, luogo, note, invitati, recapiti e numero di ospiti vengono
 estratti anche da descrizioni non strutturate. Il payload Google originale resta
 archiviato nel registro `GoogleCalendarImport`.
 
-Con Docker Compose il servizio `calendar-sync` esegue già il controllo ogni 5 minuti.
-È sufficiente valorizzare `CALENDAR_SYNC_SECRET`. Per installazioni diverse da
-Docker Compose configura un cron HTTP verso:
+La sincronizzazione automatica è programmata ogni giorno alle 00:01 nel fuso
+`Europe/Rome`; il pulsante in Impostazioni permette comunque l'importazione manuale.
+È sufficiente valorizzare `CALENDAR_SYNC_SECRET`. In alternativa configura un cron
+HTTP giornaliero verso:
 
 ```text
 GET https://tuo-dominio.it/api/google-calendar/import
 Authorization: Bearer valore_di_CALENDAR_SYNC_SECRET
 ```
 
-Con PM2 puoi mantenere attivo lo stesso controllo come processo separato:
+Con PM2 puoi mantenere attiva la pianificazione giornaliera come processo separato:
 
 ```bash
 pm2 start npm --name villa-calendar-sync -- run start:calendar-sync
