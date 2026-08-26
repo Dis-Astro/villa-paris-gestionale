@@ -87,11 +87,9 @@ export function verifyToken(token: string): AuthTokenPayload | null {
 }
 
 export function tokenFromRequest(req: NextRequest) {
-  const cookieToken = req.cookies.get('vp_token')?.value
-  if (cookieToken) return cookieToken
   const auth = req.headers.get('authorization')
   if (auth?.startsWith('Bearer ')) return auth.slice(7)
-  return null
+  return req.cookies.get('vp_token')?.value || null
 }
 
 export async function requireAuth(req: NextRequest, roles?: UserRole[]) {

@@ -37,6 +37,13 @@ yarn-error.log*
 .DS_Store
 Thumbs.db
 
+# Xcode (il progetto viene rigenerato da ios/project.yml)
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+ios/DerivedData/
+*.xcuserstate
+xcuserdata/
+
 # Build and test artifacts
 tsconfig.tsbuildinfo
 .pytest_cache/

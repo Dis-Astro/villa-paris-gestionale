@@ -95,12 +95,16 @@ export function middleware(req: NextRequest) {
   }
 
   const isLoginPath = pathname === '/login'
-  const isAuthApi = pathname.startsWith('/api/auth/login')
+  const isAuthApi = pathname.startsWith('/api/auth/login') ||
+    pathname === '/api/v1/mobile/auth/login' ||
+    pathname === '/api/v1/mobile/auth/refresh'
   const isOAuthCallback = pathname.startsWith('/api/oauth/google-calendar/callback')
 
   if (isLoginPath || isAuthApi || isOAuthCallback) return NextResponse.next()
 
-  const token = req.cookies.get('vp_token')?.value
+  const authorization = req.headers.get('authorization')
+  const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null
+  const token = bearerToken || req.cookies.get('vp_token')?.value
   if (!token) {
     if (pathname.startsWith('/api/')) {
       return NextResponse.json({ error: 'Non autenticato' }, { status: 401 })
@@ -121,6 +125,10 @@ export function middleware(req: NextRequest) {
   }
 
   const role = payload.role as Role
+
+  // Le API mobili applicano i permessi nella singola route. Qui verifichiamo soltanto
+  // che il Bearer token sia presente e non sia scaduto, come già avviene per il web.
+  if (pathname.startsWith('/api/v1/mobile/')) return NextResponse.next()
 
   // Solo Admin su gestione utenti
   if ((pathname === '/utenti' || pathname.startsWith('/utenti/') || pathname.startsWith('/api/users')) && role !== 'ADMIN') {

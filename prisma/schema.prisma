@@ -146,6 +146,24 @@ model User {
   auditLogs           AuditLog[]
   presenzeRegistrate  PresenzaVilla[]       @relation("CreatedByPresenze")
   googleCalendar      GoogleCalendarConfig? @relation("GoogleCalendarUser")
+  mobileSessions      MobileSession[]
+}
+
+// Sessioni revocabili per le app native. Il refresh token non viene mai salvato in chiaro.
+model MobileSession {
+  id               String    @id @default(cuid())
+  userId           String
+  refreshTokenHash String    @unique
+  deviceName       String?
+  expiresAt        DateTime
+  lastUsedAt       DateTime?
+  revokedAt        DateTime?
+  createdAt        DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([expiresAt])
 }
 
 model PresenzaVilla {
