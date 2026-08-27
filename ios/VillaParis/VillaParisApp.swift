@@ -8,7 +8,6 @@ struct VillaParisApp: App {
         WindowGroup {
             RootView()
                 .environment(authStore)
-                .task { await authStore.restore() }
         }
     }
 }

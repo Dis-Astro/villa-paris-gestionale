@@ -1,6 +1,20 @@
 import SwiftUI
+import UIKit
 
 struct RootView: View {
+    @Environment(AuthStore.self) private var auth
+
+    var body: some View {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            FullManagementView()
+        } else {
+            NativeSessionView()
+                .task { await auth.restore() }
+        }
+    }
+}
+
+private struct NativeSessionView: View {
     @Environment(AuthStore.self) private var auth
 
     var body: some View {
@@ -30,6 +44,6 @@ private struct AppTabView: View {
             NavigationStack { SettingsView() }
                 .tabItem { Label("Impostazioni", systemImage: "gearshape") }
         }
-        .tint(.purple)
+        .tint(Color(red: 0.09, green: 0.24, blue: 0.22))
     }
 }

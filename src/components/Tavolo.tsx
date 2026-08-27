@@ -1,7 +1,6 @@
 'use client'
 
-import { useDrag } from 'react-dnd'
-import { useRef, useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { type VariantiTavolo, VARIANTI_DEFAULT } from '@/lib/types'
 
 type TavoloProps = {
@@ -9,7 +8,7 @@ type TavoloProps = {
     id: number
     numero: string
     posti: number
-    posizione: { xPerc: number, yPerc: number }
+    posizione: { xPerc: number; yPerc: number }
     rotazione?: number
     forma?: string
     dimensionePerc: number
@@ -19,7 +18,7 @@ type TavoloProps = {
   }
   selected: boolean
   onSelect: () => void
-  onDragEnd: (pos: { x: number, y: number }) => void
+  onDragEnd: (pos: { x: number; y: number }) => void
   onRotate: (rot: number) => void
   onDelete: () => void
   onRename: (nome: string) => void
@@ -27,7 +26,16 @@ type TavoloProps = {
   onOpenVarianti?: () => void
   editabile: boolean
   dragEnabled?: boolean
+  viewScale?: number
   containerRef: React.RefObject<HTMLDivElement | null>
+}
+
+type DragState = {
+  pointerId: number
+  startX: number
+  startY: number
+  originX: number
+  originY: number
 }
 
 export default function Tavolo({
@@ -35,230 +43,182 @@ export default function Tavolo({
   selected,
   onSelect,
   onDragEnd,
-  onRotate,
-  onDelete,
-  onRename,
-  onUpdatePosti,
-  onOpenVarianti,
   editabile,
   dragEnabled = true,
-  containerRef
+  viewScale = 1,
+  containerRef,
 }: TavoloProps) {
-  const ref = useRef<HTMLDivElement>(null)
   const [containerSize, setContainerSize] = useState({ width: 1, height: 1 })
+  const [previewPosition, setPreviewPosition] = useState<{ x: number; y: number } | null>(null)
+  const [dragging, setDragging] = useState(false)
+  const dragRef = useRef<DragState | null>(null)
+  const previewPositionRef = useRef<{ x: number; y: number } | null>(null)
 
   useEffect(() => {
-    function updateSize() {
-      if (containerRef?.current) {
-        const rect = containerRef.current.getBoundingClientRect()
-        setContainerSize({ width: rect.width, height: rect.height })
-      }
+    const container = containerRef.current
+    if (!container) return
+    const updateSize = () => {
+      const rect = container.getBoundingClientRect()
+      setContainerSize({ width: container.clientWidth || rect.width || 1, height: container.clientHeight || rect.height || 1 })
     }
     updateSize()
-    window.addEventListener('resize', updateSize)
-    return () => window.removeEventListener('resize', updateSize)
+    const observer = new ResizeObserver(updateSize)
+    observer.observe(container)
+    return () => observer.disconnect()
   }, [containerRef])
 
-  const left = (tavolo.posizione?.xPerc ?? 0) * containerSize.width
-  const top = (tavolo.posizione?.yPerc ?? 0) * containerSize.height
-  const isImperiale = tavolo.forma === 'imperiale'
-  const diametro = (tavolo.dimensionePerc ?? 0.1) * containerSize.width
+  useEffect(() => {
+    if (!dragging) setPreviewPosition(null)
+  }, [tavolo.posizione?.xPerc, tavolo.posizione?.yPerc, dragging])
 
-  // Imperiale: rettangolare lungo (3:1 ratio)
+  useEffect(() => {
+    const finishFromWindow = (event: PointerEvent) => {
+      const drag = dragRef.current
+      if (!drag || drag.pointerId !== event.pointerId) return
+      if (previewPositionRef.current) onDragEnd(previewPositionRef.current)
+      dragRef.current = null
+      previewPositionRef.current = null
+      setDragging(false)
+      setPreviewPosition(null)
+    }
+    window.addEventListener('pointerup', finishFromWindow)
+    window.addEventListener('pointercancel', finishFromWindow)
+    return () => {
+      window.removeEventListener('pointerup', finishFromWindow)
+      window.removeEventListener('pointercancel', finishFromWindow)
+    }
+  }, [onDragEnd])
+
+  const posizione = previewPosition ?? {
+    x: tavolo.posizione?.xPerc ?? 0,
+    y: tavolo.posizione?.yPerc ?? 0,
+  }
+  const left = posizione.x * containerSize.width
+  const top = posizione.y * containerSize.height
+  const isImperiale = tavolo.forma === 'imperiale'
+  const diametro = (tavolo.dimensionePerc ?? 0.03) * containerSize.width
   const width = isImperiale ? diametro * 3 : diametro
   const height = isImperiale ? diametro * 0.8 : diametro
+  const hitWidth = Math.max(width, 46 / viewScale)
+  const hitHeight = Math.max(height, 46 / viewScale)
 
-  const [, drag] = useDrag({
-    type: 'TAVOLO',
-    item: { id: tavolo.id },
-    end: (item, monitor) => {
-      const offset = monitor.getDifferenceFromInitialOffset()
-      if (
-        offset &&
-        ref.current &&
-        editabile &&
-        containerRef?.current
-      ) {
-        const newX = left + offset.x
-        const newY = top + offset.y
-        const xPerc = Math.max(0, Math.min(1, newX / containerSize.width))
-        const yPerc = Math.max(0, Math.min(1, newY / containerSize.height))
-        onDragEnd({ x: xPerc, y: yPerc })
-      }
-    },
-    canDrag: editabile && dragEnabled
-  })
-
-  drag(ref)
-
-  // Calcola totale varianti e colore predominante
-  const hasVarianti = tavolo.varianti && Object.keys(tavolo.varianti).length > 0
-  const totaleVarianti = hasVarianti 
-    ? Object.values(tavolo.varianti!).reduce((sum, val) => sum + (val || 0), 0)
+  const hasVarianti = Boolean(tavolo.varianti && Object.keys(tavolo.varianti).length)
+  const totaleVarianti = hasVarianti
+    ? Object.values(tavolo.varianti!).reduce((sum, value) => sum + (value || 0), 0)
     : 0
-  
   const variantePrincipale = hasVarianti
-    ? Object.entries(tavolo.varianti!).reduce((max, [key, val]) => 
-        (val || 0) > (max.val || 0) ? { key, val } : max, { key: '', val: 0 })
+    ? Object.entries(tavolo.varianti!).reduce(
+        (max, [key, value]) => (value || 0) > (max.value || 0) ? { key, value } : max,
+        { key: '', value: 0 },
+      )
     : null
-  const coloreBadge = variantePrincipale?.key 
-    ? VARIANTI_DEFAULT[variantePrincipale.key as keyof typeof VARIANTI_DEFAULT]?.colore || '#3b82f6'
-    : '#3b82f6'
+  const coloreBadge = variantePrincipale?.key
+    ? VARIANTI_DEFAULT[variantePrincipale.key as keyof typeof VARIANTI_DEFAULT]?.colore || '#718d7e'
+    : '#718d7e'
 
-  const handleClick = (e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    event.stopPropagation()
     onSelect()
+    if (!editabile || !dragEnabled || event.button > 0) return
+    event.preventDefault()
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      originX: tavolo.posizione?.xPerc ?? 0,
+      originY: tavolo.posizione?.yPerc ?? 0,
+    }
+    setDragging(true)
+    event.currentTarget.setPointerCapture(event.pointerId)
   }
 
-  const borderColor = selected ? '#2563eb' : hasVarianti ? coloreBadge : (isImperiale ? '#b45309' : '#999')
-  const bgColor = isImperiale 
-    ? (hasVarianti ? `${coloreBadge}15` : '#fef3c7')
-    : (hasVarianti ? `${coloreBadge}15` : '#f9f9f9')
+  const handlePointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const drag = dragRef.current
+    if (!drag || drag.pointerId !== event.pointerId) return
+    event.preventDefault()
+    const maxX = Math.max(0, 1 - width / containerSize.width)
+    const maxY = Math.max(0, 1 - height / containerSize.height)
+    const nextPosition = {
+      x: Math.max(0, Math.min(maxX, drag.originX + (event.clientX - drag.startX) / (containerSize.width * viewScale))),
+      y: Math.max(0, Math.min(maxY, drag.originY + (event.clientY - drag.startY) / (containerSize.height * viewScale))),
+    }
+    previewPositionRef.current = nextPosition
+    setPreviewPosition(nextPosition)
+  }
+
+  const finishDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (!dragRef.current || dragRef.current.pointerId !== event.pointerId) return
+    if (previewPositionRef.current) onDragEnd(previewPositionRef.current)
+    dragRef.current = null
+    previewPositionRef.current = null
+    setDragging(false)
+    setPreviewPosition(null)
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+  }
+
+  const borderColor = selected ? '#173c37' : hasVarianti ? coloreBadge : isImperiale ? '#a67832' : '#718d7e'
+  const bgColor = isImperiale ? '#f3e5bf' : '#fffdf8'
 
   return (
     <div
-      ref={ref}
+      className="absolute grid place-items-center"
       style={{
-        position: 'absolute',
-        left,
-        top,
-        width,
-        height,
-        border: selected ? `3px solid ${borderColor}` : `${isImperiale ? 2 : 1}px solid ${borderColor}`,
-        borderRadius: isImperiale ? 8 : '50%',
-        background: bgColor,
-        textAlign: 'center',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        transform: `rotate(${tavolo.rotazione || 0}deg)`,
-        zIndex: selected ? 10 : 1,
-        cursor: editabile ? (dragEnabled ? 'move' : 'default') : 'default',
-        userSelect: 'none',
-        boxSizing: 'border-box'
+        left: left - (hitWidth - width) / 2,
+        top: top - (hitHeight - height) / 2,
+        width: hitWidth,
+        height: hitHeight,
+        zIndex: selected || dragging ? 20 : 2,
+        cursor: editabile && dragEnabled ? (dragging ? 'grabbing' : 'grab') : 'default',
+        touchAction: editabile && dragEnabled ? 'none' : 'manipulation',
       }}
-      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishDrag}
+      onPointerCancel={finishDrag}
+      onLostPointerCapture={finishDrag}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => {
+        if (event.key === 'Enter' || event.key === ' ') onSelect()
+      }}
+      role="button"
+      tabIndex={editabile ? 0 : -1}
+      aria-label={`${tavolo.numero}, ${tavolo.posti} posti`}
+      aria-pressed={selected}
       data-testid={`tavolo-${tavolo.id}`}
     >
-      {/* Nome tavolo */}
-      <span style={{ fontSize: Math.max(diametro * 0.25, 10), fontWeight: 'bold', color: isImperiale ? '#92400e' : undefined }}>
-        {tavolo.numero}
-      </span>
-      <span style={{ fontSize: Math.max(diametro * 0.14, 8), color: '#4b5563' }}>
-        {tavolo.posti}p
-      </span>
-      
-      {/* Badge varianti */}
-      {hasVarianti && (
-        <div 
-          style={{
-            position: 'absolute',
-            top: -4,
-            right: -4,
-            minWidth: 20,
-            height: 20,
-            backgroundColor: coloreBadge,
-            color: 'white',
-            borderRadius: '50%',
-            fontSize: 11,
-            fontWeight: 'bold',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            border: '2px solid white',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
-          }}
-          data-testid={`badge-varianti-${tavolo.id}`}
-        >
-          {totaleVarianti}
-        </div>
-      )}
-
-      {/* Label imperiale */}
-      {isImperiale && !selected && (
-        <span style={{ fontSize: 8, color: '#b45309', position: 'absolute', bottom: 2 }}>IMP</span>
-      )}
-
-      {/* Controlli quando selezionato */}
-      {editabile && selected && (
-        <div 
-          style={{ 
-            position: 'absolute',
-            bottom: -52,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            background: '#fff', 
-            borderRadius: 8, 
-            padding: '6px 8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            display: 'flex',
-            gap: 4,
-            alignItems: 'center',
-            zIndex: 20
-          }}
-        >
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete() }}
-            style={{
-              color: 'red',
-              border: 0,
-              background: 'none',
-              cursor: 'pointer',
-              padding: 4
-            }}
-            data-testid={`delete-tavolo-${tavolo.id}`}
-          >🗑</button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onRotate(((tavolo.rotazione || 0) + 45) % 360) }}
-            style={{ border: 0, background: 'none', cursor: 'pointer', padding: 4 }}
-          >↻</button>
-          {onOpenVarianti && (
-            <button
-              onClick={(e) => { e.stopPropagation(); onOpenVarianti() }}
-              style={{ 
-                border: 0, 
-                background: hasVarianti ? coloreBadge : '#3b82f6', 
-                color: 'white',
-                cursor: 'pointer', 
-                padding: '4px 8px',
-                borderRadius: 4,
-                fontSize: 12,
-                fontWeight: 'bold'
-              }}
-              data-testid={`varianti-btn-${tavolo.id}`}
-            >
-              🍽
-            </button>
-          )}
-          <input
-            type="text"
-            value={tavolo.numero}
-            onChange={e => onRename(e.target.value)}
-            onClick={e => e.stopPropagation()}
-            onPointerDown={e => e.stopPropagation()}
-            style={{
-              width: 48,
-              border: '1px solid #ccc',
-              borderRadius: 4,
-              padding: '2px 4px',
-              textAlign: 'center'
-            }}
-            data-testid={`rename-tavolo-${tavolo.id}`}
-          />
-          <input
-            type="number"
-            min={1}
-            max={40}
-            value={tavolo.posti || 1}
-            onChange={(e) => onUpdatePosti(Math.max(1, Number(e.target.value) || 1))}
-            onClick={(e) => e.stopPropagation()}
-            onPointerDown={(e) => e.stopPropagation()}
-            style={{ width: 48, border: '1px solid #ccc', borderRadius: 4, padding: '2px 4px' }}
-            data-testid={`posti-tavolo-${tavolo.id}`}
-          />
-        </div>
-      )}
+      <div
+        className="relative flex flex-col items-center justify-center text-center shadow-[0_3px_10px_rgba(24,55,50,.12)] transition-[box-shadow,opacity]"
+        style={{
+          width,
+          height,
+          border: selected ? `3px solid ${borderColor}` : `1.5px solid ${borderColor}`,
+          outline: selected ? '4px solid rgba(201,169,106,.28)' : undefined,
+          borderRadius: isImperiale ? Math.max(7, height * 0.2) : '50%',
+          background: hasVarianti ? `linear-gradient(135deg, ${coloreBadge}20, ${bgColor} 60%)` : bgColor,
+          transform: `rotate(${tavolo.rotazione || 0}deg) scale(${dragging ? 1.04 : 1})`,
+          opacity: dragging ? 0.9 : 1,
+          boxSizing: 'border-box',
+          userSelect: 'none',
+        }}
+      >
+        <span style={{ fontSize: Math.max(diametro * 0.24, 9), fontWeight: 700, color: '#173c37', lineHeight: 1 }}>
+          {tavolo.numero}
+        </span>
+        <span style={{ fontSize: Math.max(diametro * 0.14, 8), color: '#667a75', lineHeight: 1.15 }}>
+          {tavolo.posti}p
+        </span>
+        {hasVarianti && (
+          <div
+            className="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full border-2 border-white px-1 text-[10px] font-bold text-white shadow-sm"
+            style={{ backgroundColor: coloreBadge }}
+            data-testid={`badge-varianti-${tavolo.id}`}
+          >
+            {totaleVarianti}
+          </div>
+        )}
+      </div>
     </div>
   )
 }

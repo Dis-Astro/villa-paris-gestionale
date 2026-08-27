@@ -265,6 +265,23 @@ export async function PUT(req: NextRequest) {
       return new NextResponse('Evento non trovato', { status: 404 })
     }
 
+    const requestedBaseUpdatedAt = typeof body._baseUpdatedAt === 'string' && body._baseUpdatedAt
+      ? new Date(body._baseUpdatedAt)
+      : null
+
+    if (requestedBaseUpdatedAt && Number.isNaN(requestedBaseUpdatedAt.getTime())) {
+      return NextResponse.json({ error: 'Versione di partenza non valida' }, { status: 400 })
+    }
+
+    if (requestedBaseUpdatedAt && requestedBaseUpdatedAt.getTime() !== eventoEsistente.updatedAt.getTime()) {
+      return NextResponse.json({
+        error: 'CONFLICT',
+        message: 'Questo evento è stato modificato da un altro dispositivo. La bozza locale è stata conservata.',
+        currentUpdatedAt: eventoEsistente.updatedAt.toISOString(),
+        current: eventoEsistente,
+      }, { status: 409 })
+    }
+
     // Verifica blocco -10 giorni
     const infoBlocco = calcolaInfoBlocco(eventoEsistente.dataConfermata)
     const campiBloccatiModificati = getCampiBloccatiModificati(body)
@@ -321,7 +338,9 @@ export async function PUT(req: NextRequest) {
     if (has(body, 'menu')) updateData.menu = dbJsonSerialize(body.menu)
     if (has(body, 'struttura')) updateData.struttura = dbJsonSerialize(body.struttura)
     if (has(body, 'disposizioneSala')) updateData.disposizioneSala = dbJsonSerialize(body.disposizioneSala)
-    if (has(body, 'disposizioneSalePianoB')) updateData.disposizioneSalaPianoB = dbJsonSerialize(body.disposizioneSalePianoB)
+    // Accetta il nome corretto e quello storico per non interrompere client già distribuiti.
+    if (has(body, 'disposizioneSalaPianoB')) updateData.disposizioneSalaPianoB = dbJsonSerialize(body.disposizioneSalaPianoB)
+    else if (has(body, 'disposizioneSalePianoB')) updateData.disposizioneSalaPianoB = dbJsonSerialize(body.disposizioneSalePianoB)
     if (has(body, 'pianoAttivo')) updateData.pianoAttivo = body.pianoAttivo || null
     if (has(body, 'dateProposte')) updateData.dateProposte = dbJsonSerialize(body.dateProposte ?? [])
     if (has(body, 'luogo')) updateData.luogo = body.luogo || null
@@ -334,23 +353,40 @@ export async function PUT(req: NextRequest) {
     if (has(body, 'canalePrimoContatto')) updateData.canalePrimoContatto = body.canalePrimoContatto || null
     if (has(body, 'appuntamentoOrigineId')) updateData.appuntamentoOrigineId = body.appuntamentoOrigineId ? Number(body.appuntamentoOrigineId) : null
 
-    const evento = await prisma.$transaction(async (tx) => {
-      if (Array.isArray(body.clienti)) {
-        const clienteIds = await resolveClientIds(
-          body.clienti,
-          has(body, 'canalePrimoContatto') ? body.canalePrimoContatto : before.canalePrimoContatto,
-          has(body, 'dataPrimoContatto') ? parseDate(body.dataPrimoContatto) : before.dataPrimoContatto
-        )
-        await tx.eventoCliente.deleteMany({ where: { eventoId: id } })
-        if (clienteIds.length) {
-          await tx.eventoCliente.createMany({
-            data: clienteIds.map((clienteId) => ({ eventoId: id, clienteId }))
-          })
+    let evento
+    try {
+      evento = await prisma.$transaction(async (tx) => {
+        if (Array.isArray(body.clienti)) {
+          const clienteIds = await resolveClientIds(
+            body.clienti,
+            has(body, 'canalePrimoContatto') ? body.canalePrimoContatto : before.canalePrimoContatto,
+            has(body, 'dataPrimoContatto') ? parseDate(body.dataPrimoContatto) : before.dataPrimoContatto
+          )
+          await tx.eventoCliente.deleteMany({ where: { eventoId: id } })
+          if (clienteIds.length) {
+            await tx.eventoCliente.createMany({
+              data: clienteIds.map((clienteId) => ({ eventoId: id, clienteId }))
+            })
+          }
         }
-      }
 
-      return tx.evento.update({ where: { id }, data: updateData })
-    })
+        return tx.evento.update({
+          where: requestedBaseUpdatedAt ? { id, updatedAt: requestedBaseUpdatedAt } : { id },
+          data: updateData,
+        })
+      })
+    } catch (error: any) {
+      if (requestedBaseUpdatedAt && error?.code === 'P2025') {
+        const current = await prisma.evento.findUnique({ where: { id } })
+        return NextResponse.json({
+          error: 'CONFLICT',
+          message: 'Questo evento è stato modificato da un altro dispositivo. La bozza locale è stata conservata.',
+          currentUpdatedAt: current?.updatedAt?.toISOString() || null,
+          current,
+        }, { status: 409 })
+      }
+      throw error
+    }
 
     await writeAuditLog({
       entityType: 'EVENT',

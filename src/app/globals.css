@@ -44,38 +44,42 @@
 }
 
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
+  --radius: 0.875rem;
+  --background: oklch(0.985 0.006 85);
+  --foreground: oklch(0.25 0.025 175);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
+  --primary: oklch(0.33 0.055 175);
+  --primary-foreground: oklch(0.985 0.006 85);
+  --secondary: oklch(0.955 0.018 84);
+  --secondary-foreground: oklch(0.29 0.035 175);
+  --muted: oklch(0.96 0.01 85);
+  --muted-foreground: oklch(0.52 0.02 170);
+  --accent: oklch(0.88 0.055 78);
+  --accent-foreground: oklch(0.29 0.035 175);
   --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --border: oklch(0.9 0.018 83);
+  --input: oklch(0.9 0.018 83);
+  --ring: oklch(0.66 0.075 78);
   --chart-1: oklch(0.646 0.222 41.116);
   --chart-2: oklch(0.6 0.118 184.704);
   --chart-3: oklch(0.398 0.07 227.392);
   --chart-4: oklch(0.828 0.189 84.429);
   --chart-5: oklch(0.769 0.188 70.08);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar: oklch(0.3 0.05 175);
+  --sidebar-foreground: oklch(0.97 0.01 85);
+  --sidebar-primary: oklch(0.77 0.08 78);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+  --app-surface: #f4f2ed;
+  --app-ink: #173c37;
+  --app-gold: #c9a96a;
+  --app-sage: #718d7e;
 }
 
 .dark {
@@ -118,5 +122,94 @@
   }
   body {
     @apply bg-background text-foreground;
+    min-height: 100dvh;
+    background:
+      radial-gradient(circle at 90% -10%, rgba(201, 169, 106, 0.12), transparent 30rem),
+      var(--app-surface);
+    -webkit-tap-highlight-color: transparent;
+    text-rendering: optimizeLegibility;
+  }
+
+  button,
+  a,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+
+  button,
+  a {
+    -webkit-user-select: none;
+    user-select: none;
+  }
+
+  input,
+  select,
+  textarea {
+    font-size: max(16px, 1em);
+  }
+}
+
+@layer utilities {
+  .safe-top {
+    padding-top: env(safe-area-inset-top);
+  }
+
+  .safe-bottom {
+    padding-bottom: max(0.375rem, env(safe-area-inset-bottom));
+  }
+
+  .vp-panel {
+    border: 1px solid rgba(23, 60, 55, 0.09);
+    background: rgba(255, 255, 255, 0.86);
+    box-shadow: 0 14px 38px rgba(18, 51, 46, 0.07);
+    backdrop-filter: blur(18px);
+  }
+
+  .touch-target {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+@media (pointer: coarse) {
+  button,
+  [role='button'] {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 639px) {
+  .fc .fc-header-toolbar {
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.65rem;
+  }
+
+  .fc .fc-toolbar-chunk:nth-child(2) {
+    order: -1;
+    width: 100%;
+  }
+
+  .fc .fc-toolbar-title {
+    font-size: 1.3rem;
+    text-align: center;
+  }
+
+  .fc .fc-button {
+    padding: 0.45rem 0.62rem;
+    font-size: 0.78rem;
+  }
+
+  .fc .fc-daygrid-day-number {
+    padding: 0.35rem;
+  }
+}
+
+@media print {
+  .safe-top,
+  .safe-bottom {
+    padding: 0;
   }
 }

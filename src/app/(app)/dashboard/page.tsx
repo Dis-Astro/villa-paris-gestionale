@@ -101,17 +101,17 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6" data-testid="dashboard-operativa-page">
-      <div className="rounded-[28px] border bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 p-6 text-white" data-testid="dashboard-hero">
+      <div className="overflow-hidden rounded-[28px] border border-white/10 bg-[radial-gradient(circle_at_90%_20%,rgba(201,169,106,.23),transparent_27rem),linear-gradient(120deg,#173c37,#214f48)] p-6 text-white shadow-[0_18px_44px_rgba(18,51,46,.16)] sm:p-8" data-testid="dashboard-hero">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-3xl">
-            <p className="text-xs uppercase tracking-[0.32em] text-amber-300">Villa Paris · dashboard</p>
+            <p className="text-xs uppercase tracking-[0.32em] text-[#e4d3aa]">Villa Paris · dashboard</p>
             <h1 className="mt-3 text-4xl font-semibold">Cruscotto operativo</h1>
             <p className="mt-3 text-sm text-slate-300" data-testid="dashboard-description">
               Vista rapida su contatti, appuntamenti, interazioni, tempo dedicato e stato del funnel con la stessa policy spam dei report.
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
-            <Button onClick={() => router.push('/report/azienda')} className="bg-amber-400 text-slate-900 hover:bg-amber-300" data-testid="dashboard-open-report-button">
+            <Button onClick={() => router.push('/report/azienda')} className="bg-[#c9a96a] text-[#102d29] hover:bg-[#dcc18b]" data-testid="dashboard-open-report-button">
               <FileText className="w-4 h-4 mr-2" /> Apri report completo
             </Button>
             {role && role !== 'REPORT' && (

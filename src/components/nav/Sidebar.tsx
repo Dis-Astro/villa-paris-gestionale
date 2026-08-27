@@ -28,20 +28,22 @@ interface SidebarProps {
 
 type Role = 'ADMIN' | 'REPORT' | 'WORKER'
 
-const menuItems: Array<{ label: string; href: string; icon: any; description: string; roles: Role[] }> = [
+const menuItems: Array<{ label: string; href: string; icon: any; description: string; roles: Role[]; mobile?: boolean }> = [
   {
     label: 'Dashboard',
     href: '/dashboard',
     icon: Home,
     description: 'Panoramica generale',
-    roles: ['ADMIN', 'REPORT']
+    roles: ['ADMIN', 'REPORT'],
+    mobile: true
   },
   {
     label: 'Calendario',
     href: '/calendario',
     icon: Calendar,
     description: 'Eventi e prenotazioni',
-    roles: ['ADMIN', 'REPORT', 'WORKER']
+    roles: ['ADMIN', 'REPORT', 'WORKER'],
+    mobile: true
   },
   {
     label: 'Appuntamenti',
@@ -144,36 +146,37 @@ export default function Sidebar({ isOpen, onClose, currentPath, user }: SidebarP
   return (
     <aside
       className={`
-        fixed inset-y-0 left-0 z-50 flex h-screen w-64 flex-col overflow-hidden bg-slate-900 text-white
+        fixed inset-y-0 left-0 z-50 flex h-[100dvh] w-[min(88vw,19rem)] flex-col overflow-hidden bg-[#173c37] text-white shadow-2xl shadow-[#102d29]/20
         transform transition-transform duration-300 ease-in-out
-        lg:translate-x-0
+        md:w-20 md:translate-x-0 md:shadow-none lg:w-72
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}
       data-testid="sidebar-shell"
     >
       {/* Header */}
-      <div className="flex items-center justify-between h-16 px-4 border-b border-slate-700">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-amber-600 rounded-lg flex items-center justify-center">
-            <span className="text-slate-900 font-bold text-lg">VP</span>
+      <div className="flex h-[72px] items-center justify-between border-b border-white/10 px-4 md:justify-center md:px-3 lg:justify-between lg:px-5">
+        <Link href="/dashboard" className="flex items-center gap-3" aria-label="Villa Paris">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-[#e4d3aa]/30 bg-[#c9a96a] shadow-inner">
+            <span className="text-base font-bold tracking-tight text-[#102d29]">VP</span>
           </div>
-          <div className="flex flex-col">
-            <span className="font-bold text-lg leading-tight">Villa Paris</span>
-            <span className="text-xs text-slate-400">Gestionale</span>
+          <div className="flex flex-col md:hidden lg:flex">
+            <span className="text-lg font-semibold leading-tight tracking-tight">Villa Paris</span>
+            <span className="text-[11px] uppercase tracking-[.18em] text-[#e4d3aa]/70">Gestionale</span>
           </div>
         </Link>
         
         {/* Close button (mobile) */}
         <button
           onClick={onClose}
-          className="lg:hidden p-2 hover:bg-slate-800 rounded-lg"
+          className="rounded-xl p-2 hover:bg-white/10 md:hidden"
+          aria-label="Chiudi menu"
         >
           <X className="w-5 h-5" />
         </button>
       </div>
 
       {/* Navigation */}
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4 space-y-1" data-testid="sidebar-scroll-area">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 py-4 md:px-2 lg:px-3" data-testid="sidebar-scroll-area">
         {visibleMenu.map((item) => {
           const active = isActive(item.href)
           const Icon = item.icon
@@ -184,29 +187,30 @@ export default function Sidebar({ isOpen, onClose, currentPath, user }: SidebarP
               href={item.href}
               onClick={() => onClose()}
               className={`
-                flex items-center gap-3 px-3 py-3 rounded-lg
+                ${item.mobile ? '' : 'max-md:hidden'} flex min-h-12 items-center gap-3 rounded-xl px-3 py-2.5
                 transition-all duration-200 group
                 ${active 
-                  ? 'bg-amber-500 text-slate-900 font-medium' 
-                  : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                  ? 'bg-[#c9a96a] text-[#102d29] font-semibold shadow-sm'
+                  : 'text-white/68 hover:bg-white/8 hover:text-white'
                 }
               `}
+              title={item.label}
             >
-              <Icon className={`w-5 h-5 ${active ? 'text-slate-900' : 'text-slate-400 group-hover:text-white'}`} />
-              <div className="flex-1">
+              <Icon className={`h-5 w-5 shrink-0 md:mx-auto lg:mx-0 ${active ? 'text-[#102d29]' : 'text-white/60 group-hover:text-white'}`} strokeWidth={active ? 2.3 : 1.8} />
+              <div className="flex-1 md:hidden lg:block">
                 <span className="block">{item.label}</span>
-                <span className={`text-xs ${active ? 'text-slate-700' : 'text-slate-500'}`}>
+                <span className={`text-[11px] ${active ? 'text-[#173c37]/70' : 'text-white/38'}`}>
                   {item.description}
                 </span>
               </div>
-              {active && <ChevronRight className="w-4 h-4" />}
+              {active && <ChevronRight className="h-4 w-4 md:hidden lg:block" />}
             </Link>
           )
         })}
       </nav>
 
       {/* Quick actions */}
-      <div className="shrink-0 border-t border-slate-700 p-4">
+      <div className="hidden shrink-0 border-t border-white/10 p-3 md:block lg:p-4">
         <button
           onClick={() => {
             if (!role) return
@@ -214,22 +218,23 @@ export default function Sidebar({ isOpen, onClose, currentPath, user }: SidebarP
             onClose()
           }}
           disabled={!role}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-amber-500 hover:bg-amber-400 text-slate-900 font-medium rounded-lg transition-colors"
+          className="flex min-h-12 w-full items-center justify-center gap-2 rounded-xl bg-[#c9a96a] px-3 py-3 font-semibold text-[#102d29] transition-colors hover:bg-[#dcc18b]"
+          title={role === 'WORKER' ? 'Nuovo Rapportino' : role === 'REPORT' ? 'Apri Report' : 'Nuovo Evento'}
         >
-          <Calendar className="w-5 h-5" />
-          {role === 'WORKER' ? 'Nuovo Rapportino' : role === 'REPORT' ? 'Apri Report' : 'Nuovo Evento'}
+          <Calendar className="h-5 w-5 shrink-0" />
+          <span className="md:hidden lg:inline">{role === 'WORKER' ? 'Nuovo Rapportino' : role === 'REPORT' ? 'Apri Report' : 'Nuovo Evento'}</span>
         </button>
       </div>
 
       {/* User info */}
-      <div className="shrink-0 border-t border-slate-700 p-4">
+      <div className="shrink-0 border-t border-white/10 p-4 md:hidden lg:block">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center">
-            <Users className="w-5 h-5 text-slate-400" />
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/10">
+            <Users className="h-5 w-5 text-[#e4d3aa]" />
           </div>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium truncate">{email || 'Utente autenticato'}</p>
-            <p className="text-xs text-slate-400 truncate">{role}</p>
+            <p className="truncate text-xs text-white/45">{role}</p>
           </div>
         </div>
       </div>

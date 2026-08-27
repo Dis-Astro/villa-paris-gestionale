@@ -1,6 +1,6 @@
 # Villa Paris per iOS
 
-Base nativa SwiftUI collegata alle API versionate del gestionale. La webapp resta il backend e continua a funzionare normalmente.
+App iOS/iPadOS collegata alle API versionate del gestionale. Su iPad apre lo spazio di lavoro completo, incluse planimetrie e funzioni operative; su iPhone mantiene l'esperienza nativa essenziale per consultazione e calendario. La webapp resta il backend e continua a funzionare normalmente.
 
 ## Requisiti sul Mac
 
@@ -17,7 +17,9 @@ xcodegen generate
 open VillaParis.xcodeproj
 ```
 
-In Xcode selezionare il proprio Team in **Signing & Capabilities**. L'URL di produzione è configurato in `project.yml` tramite `API_BASE_URL`; usare un file di configurazione separato prima di collegare un ambiente di sviluppo.
+In Xcode selezionare il proprio Team in **Signing & Capabilities** per un dispositivo fisico. La configurazione Debug usa `http://localhost:3000` nel Simulator, mentre la Release usa `https://gestionale.villaparis.it`.
+
+Su iPad la WebView ricorda l'ultima schermata utilizzata. La webapp conserva in locale le planimetrie in lavorazione, mette in coda i salvataggi effettuati senza rete e li invia al server alla riapertura o al ritorno della connessione. Le modifiche contemporanee da PC e iPad non vengono sovrascritte automaticamente: l'utente sceglie quale versione mantenere.
 
 ## API utilizzate
 

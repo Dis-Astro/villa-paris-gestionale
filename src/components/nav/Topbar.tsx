@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import type { CurrentUser } from '../layout/AppShell'
+import { clearOfflineWorkspace } from '@/lib/planimetria-offline'
 import { 
   Menu, 
   Search, 
@@ -36,6 +37,7 @@ const pathLabels: Record<string, string> = {
   '/audit': 'Audit',
   '/utenti': 'Gestione Utenti',
   '/stampe': 'Stampe',
+  '/assistente-ai': 'Assistente AI',
   '/impostazioni': 'Impostazioni',
   '/nuovo-evento': 'Nuovo Evento',
   '/modifica-evento': 'Modifica Evento',
@@ -211,6 +213,13 @@ export default function Topbar({ onMenuClick, user }: TopbarProps) {
   const [searchQuery, setSearchQuery] = useState('')
   const [searchOpen, setSearchOpen] = useState(false)
 
+  const handleLogout = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' })
+    await clearOfflineWorkspace()
+    router.push('/login')
+    router.refresh()
+  }
+
   // Build breadcrumb from pathname
   const buildBreadcrumb = () => {
     const parts = pathname.split('/').filter(Boolean)
@@ -250,14 +259,14 @@ export default function Topbar({ onMenuClick, user }: TopbarProps) {
   }
 
   return (
-    <header className="sticky top-0 z-30 bg-white border-b shadow-sm">
-      <div className="flex items-center justify-between h-16 px-4">
+    <header className="safe-top sticky top-0 z-30 border-b border-[#173c37]/8 bg-white/88 shadow-[0_1px_16px_rgba(18,51,46,.045)] backdrop-blur-xl">
+      <div className="flex h-[72px] items-center justify-between px-4 md:px-6 xl:px-9">
         {/* Left side - Menu button + Breadcrumb */}
         <div className="flex items-center gap-4">
           {/* Mobile menu button */}
           <button
             onClick={onMenuClick}
-            className="lg:hidden p-2 -ml-2 hover:bg-gray-100 rounded-lg"
+            className="-ml-2 rounded-xl p-2 hover:bg-[#173c37]/5 md:hidden"
             aria-label="Apri menu"
           >
             <Menu className="w-6 h-6 text-gray-600" />
@@ -316,7 +325,7 @@ export default function Topbar({ onMenuClick, user }: TopbarProps) {
             ) : (
               <button
                 onClick={() => setSearchOpen(true)}
-                className="p-2 hover:bg-gray-100 rounded-lg"
+                className="hidden rounded-xl p-2 hover:bg-[#173c37]/5 sm:block"
                 aria-label="Cerca"
               >
                 <Search className="w-5 h-5 text-gray-500" />
@@ -328,18 +337,16 @@ export default function Topbar({ onMenuClick, user }: TopbarProps) {
               <NotificheDropdown role={user?.role} />
 
           {/* Desktop user + logout */}
-          <div className="hidden lg:flex items-center gap-2 border-l pl-2 ml-1" data-testid="topbar-user-area">
+          <span className="hidden rounded-full border border-[#c9a96a]/35 bg-[#f8f3e8] px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[.14em] text-[#7a6847] lg:inline-flex">Beta iPad</span>
+
+          <div className="hidden items-center gap-2 border-l border-[#173c37]/10 pl-2 ml-1 lg:flex" data-testid="topbar-user-area">
             <div className="text-right">
               <p className="text-xs text-gray-700 truncate max-w-[180px]">{user?.email || 'utente'}</p>
               <p className="text-[10px] text-gray-500">{user?.role || ''}</p>
             </div>
             <button
-              className="p-2 hover:bg-gray-100 rounded-lg"
-              onClick={async () => {
-                await fetch('/api/auth/logout', { method: 'POST' })
-                router.push('/login')
-                router.refresh()
-              }}
+              className="rounded-xl p-2 hover:bg-[#173c37]/5"
+              onClick={handleLogout}
               data-testid="topbar-logout-btn"
             >
               <LogOut className="w-4 h-4 text-gray-500" />
@@ -348,16 +355,12 @@ export default function Topbar({ onMenuClick, user }: TopbarProps) {
 
           {/* User avatar (mobile) */}
           <button
-            className="lg:hidden p-1"
-            onClick={async () => {
-              await fetch('/api/auth/logout', { method: 'POST' })
-              router.push('/login')
-              router.refresh()
-            }}
+            className="p-1 lg:hidden"
+            onClick={handleLogout}
             data-testid="topbar-mobile-logout-btn"
           >
-            <div className="w-8 h-8 bg-amber-500 rounded-full flex items-center justify-center">
-              <span className="text-sm font-medium text-white">{(user?.email || 'U')[0].toUpperCase()}</span>
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#c9a96a]">
+              <span className="text-sm font-semibold text-[#102d29]">{(user?.email || 'U')[0].toUpperCase()}</span>
             </div>
           </button>
         </div>

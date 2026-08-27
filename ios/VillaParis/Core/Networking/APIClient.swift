@@ -47,10 +47,11 @@ actor APIClient {
 
     func login(email: String, password: String) async throws -> MobileSessionResponse {
         struct LoginBody: Encodable { let email: String; let password: String; let deviceName: String }
+        let deviceName = await MainActor.run { UIDevice.current.name }
         let result: MobileSessionResponse = try await send(
             path: "/api/v1/mobile/auth/login",
             method: "POST",
-            body: LoginBody(email: email, password: password, deviceName: UIDevice.current.name),
+            body: LoginBody(email: email, password: password, deviceName: deviceName),
             authenticated: false
         )
         try persist(result)
@@ -157,15 +158,16 @@ actor APIClient {
         if let refreshTask { return try await refreshTask.value }
         guard let refreshToken else { throw APIClientError.unauthorized }
         struct RefreshBody: Encodable { let refreshToken: String; let deviceName: String }
+        let deviceName = await MainActor.run { UIDevice.current.name }
 
-        let task = Task { [session, baseURL, decoder, encoder] in
+        let task = Task { [session, baseURL, decoder, encoder, deviceName] in
             guard let url = URL(string: "/api/v1/mobile/auth/refresh", relativeTo: baseURL)?.absoluteURL else {
                 throw APIClientError.invalidConfiguration
             }
             var request = URLRequest(url: url)
             request.httpMethod = "POST"
             request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-            request.httpBody = try encoder.encode(RefreshBody(refreshToken: refreshToken, deviceName: UIDevice.current.name))
+            request.httpBody = try encoder.encode(RefreshBody(refreshToken: refreshToken, deviceName: deviceName))
             let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
                 throw APIClientError.unauthorized

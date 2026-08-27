@@ -2,6 +2,8 @@
 
 Gestionale operativo per Villa Paris: eventi, clienti, appuntamenti, rapportini interni, planimetrie, menu, stampe PDF e report.
 
+La beta corrente introduce un'esperienza installabile e ottimizzata per iPad, con navigazione compatta per smartphone e un nuovo workspace touch per le planimetrie. Dettagli e matrice funzionale: [docs/BETA-IPAD.md](docs/BETA-IPAD.md).
+
 ## Funzionalita principali
 
 - Dashboard con KPI operativi

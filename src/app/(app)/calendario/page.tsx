@@ -588,8 +588,8 @@ export default function CalendarioPage() {
                 {y}
               </button>
             ))}
-            <div className="ml-auto flex items-center gap-2">
-              <span className="text-sm text-gray-500">Vai a data:</span>
+            <div className="flex w-full flex-wrap items-center gap-2 md:ml-auto md:w-auto">
+              <span className="hidden text-sm text-gray-500 sm:inline">Vai a data:</span>
               <input
                 type="date"
                 className="border rounded-lg px-2 py-1 text-sm focus:ring-2 focus:ring-amber-500"
@@ -611,6 +611,7 @@ export default function CalendarioPage() {
                 disabled={!prossimoEvento}
                 onClick={() => prossimoEvento && goToDate(prossimoEvento.data)}
                 data-testid="calendario-prossimo-evento-btn"
+                className="hidden sm:inline-flex"
               >
                 Prossimo evento
               </Button>
@@ -619,6 +620,7 @@ export default function CalendarioPage() {
                 size="sm"
                 onClick={() => goToDate(aggiungiGiorni(dataSelezionata || todayIso, 7))}
                 data-testid="calendario-prossima-settimana-btn"
+                className="hidden md:inline-flex"
               >
                 +1 settimana
               </Button>
@@ -627,6 +629,7 @@ export default function CalendarioPage() {
                 size="sm"
                 onClick={() => goToDate(aggiungiMesi(dataSelezionata || todayIso, 1))}
                 data-testid="calendario-prossimo-mese-btn"
+                className="hidden md:inline-flex"
               >
                 +1 mese
               </Button>
@@ -691,8 +694,8 @@ export default function CalendarioPage() {
       </Card>
 
       {/* Calendario */}
-      <Card>
-        <CardContent className="p-4">
+      <Card className="overflow-hidden">
+        <CardContent className="p-2 sm:p-4">
           <FullCalendar
             ref={calendarRef}
             key={calendarKey}

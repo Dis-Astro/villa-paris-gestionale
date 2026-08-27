@@ -5,9 +5,18 @@ import { useParams, useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import VillaPiantina from '@/components/VillaPiantina'
-import VillaPiantinaDnDWrapper from '@/components/VillaPiantinaDnDWrapper'
 import { type VariantId, calcolaRiepilogoVarianti, VARIANTI_DEFAULT } from '@/lib/types'
 import BannerBlocco, { getOverrideHeaders } from '@/components/BannerBlocco'
+import {
+  PLANIMETRIA_SYNC_EVENT,
+  createPlanimetriaMutationId,
+  readPlanimetriaDraft,
+  removePlanimetriaDraft,
+  syncPendingPlanimetrie,
+  writePlanimetriaDraft,
+  type PlanimetriaDraft,
+  type PlanimetriaSyncEventDetail,
+} from '@/lib/planimetria-offline'
 import jsPDF from 'jspdf'
 import { 
   Layout, 
@@ -37,7 +46,14 @@ export default function GestionePiantinaPage() {
   const [variantiAttive, setVariantiAttive] = useState<VariantId[]>([])
   const [status, setStatus] = useState('')
   const [isSaving, setIsSaving] = useState(false)
+  const [hasChanges, setHasChanges] = useState(false)
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null)
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState<string | null>(null)
+  const [isOnline, setIsOnline] = useState(true)
+  const [syncState, setSyncState] = useState<'synced' | 'local' | 'pending' | 'syncing' | 'offline' | 'conflict' | 'blocked'>('synced')
+  const [conflictServerEvent, setConflictServerEvent] = useState<any>(null)
   const stampaRef = useRef<HTMLDivElement>(null)
+  const draftMutationIdRef = useRef<string | null>(null)
 
   const aggiornaDisposizione = useCallback((nuova: any) => {
     const cloned = JSON.parse(JSON.stringify(nuova))
@@ -46,6 +62,7 @@ export default function GestionePiantinaPage() {
     } else {
       setDisposizione(cloned)
     }
+    setHasChanges(true)
   }, [pianoAttivo])
 
   const parseDisposizione = (raw: any) => {
@@ -89,9 +106,52 @@ export default function GestionePiantinaPage() {
           setVariantiAttive(data.menu.variantiAttive)
         }
 
-        setDisposizione(parseDisposizione(data.disposizioneSala))
-        setDisposizionePianoB(parseDisposizione(data.disposizioneSalaPianoB))
-        if (data.pianoAttivo === 'B') setPianoAttivo('B')
+        const serverDisposizione = parseDisposizione(data.disposizioneSala)
+        const serverDisposizionePianoB = parseDisposizione(data.disposizioneSalaPianoB)
+        setDisposizione(serverDisposizione)
+        setDisposizionePianoB(serverDisposizionePianoB)
+        setPianoAttivo(data.pianoAttivo === 'B' ? 'B' : 'A')
+        setBaseUpdatedAt(data.updatedAt || null)
+        setHasChanges(false)
+
+        const draft = await readPlanimetriaDraft(eventoId)
+        const serverUpdatedAt = Date.parse(data.updatedAt || '') || 0
+        const draftUpdatedAt = draft ? Date.parse(draft.localUpdatedAt) || 0 : 0
+        const shouldRestoreDraft = Boolean(
+          draft && (
+            draft.pendingSync ||
+            draft.syncStatus === 'conflict' ||
+            draft.syncStatus === 'blocked' ||
+            draftUpdatedAt > serverUpdatedAt
+          )
+        )
+
+        if (draft && shouldRestoreDraft) {
+          setDisposizione(parseDisposizione(draft.disposizioneSala))
+          setDisposizionePianoB(parseDisposizione(draft.disposizioneSalaPianoB))
+          setPianoAttivo(draft.pianoAttivo)
+          setBaseUpdatedAt(draft.baseUpdatedAt || data.updatedAt || null)
+          setHasChanges(true)
+          draftMutationIdRef.current = draft.mutationId
+
+          if (draft.syncStatus === 'conflict') {
+            setSyncState('conflict')
+            setConflictServerEvent(data)
+            setStatus('⚠️ Conflitto rilevato: la bozza locale è stata ripristinata senza sovrascrivere il server.')
+          } else if (draft.syncStatus === 'blocked') {
+            setSyncState('blocked')
+            setStatus('🔒 Bozza locale ripristinata. Per inviarla serve un override amministrativo.')
+          } else if (draft.pendingSync) {
+            setSyncState(navigator.onLine ? 'pending' : 'offline')
+            setStatus(navigator.onLine ? 'Invio della bozza locale in corso…' : 'Bozza locale ripristinata. Verrà inviata al ritorno della rete.')
+            if (navigator.onLine) void syncPendingPlanimetrie()
+          } else {
+            setSyncState(navigator.onLine ? 'local' : 'offline')
+            setStatus('Bozza locale ripristinata su questo dispositivo.')
+          }
+        } else if (draft) {
+          await removePlanimetriaDraft(eventoId, draft.mutationId)
+        }
       } catch (error) {
         console.error('Errore nel caricamento evento:', error)
       }
@@ -111,6 +171,106 @@ export default function GestionePiantinaPage() {
       }
     }
   }, [])
+
+  useEffect(() => {
+    const updateConnectionState = () => {
+      const online = navigator.onLine
+      setIsOnline(online)
+
+      if (!online) {
+        setSyncState((current) => current === 'conflict' || current === 'blocked' ? current : 'offline')
+        return
+      }
+
+      void readPlanimetriaDraft(eventoId).then((draft) => {
+        setSyncState((current) => {
+          if (current === 'conflict' || current === 'blocked') return current
+          if (draft?.pendingSync) return 'pending'
+          return hasChanges ? 'local' : 'synced'
+        })
+        if (draft?.pendingSync) void syncPendingPlanimetrie()
+      })
+    }
+
+    updateConnectionState()
+    window.addEventListener('online', updateConnectionState)
+    window.addEventListener('offline', updateConnectionState)
+    return () => {
+      window.removeEventListener('online', updateConnectionState)
+      window.removeEventListener('offline', updateConnectionState)
+    }
+  }, [eventoId, hasChanges])
+
+  useEffect(() => {
+    const handleSyncEvent = (event: Event) => {
+      const detail = (event as CustomEvent<PlanimetriaSyncEventDetail>).detail
+      if (!detail || detail.eventoId !== eventoId) return
+      if (draftMutationIdRef.current && detail.mutationId !== draftMutationIdRef.current) return
+
+      if (detail.status === 'synced') {
+        if (detail.updatedAt) {
+          setBaseUpdatedAt(detail.updatedAt)
+          setEvento((current: any) => current ? { ...current, updatedAt: detail.updatedAt } : current)
+        }
+        setHasChanges(false)
+        setLastSavedAt(new Date())
+        setSyncState('synced')
+        setConflictServerEvent(null)
+        setStatus('✅ Bozza locale sincronizzata con il server')
+        draftMutationIdRef.current = null
+        setTimeout(() => setStatus(''), 2500)
+      } else if (detail.status === 'conflict') {
+        setSyncState('conflict')
+        setConflictServerEvent(detail.current || null)
+        setStatus('⚠️ Il PC o un altro iPad ha salvato una versione più recente. La tua bozza è al sicuro.')
+      } else if (detail.status === 'blocked') {
+        setSyncState('blocked')
+        setStatus(`🔒 ${detail.message || 'Evento bloccato: serve un override amministrativo.'}`)
+      }
+    }
+
+    window.addEventListener(PLANIMETRIA_SYNC_EVENT, handleSyncEvent)
+    return () => window.removeEventListener(PLANIMETRIA_SYNC_EVENT, handleSyncEvent)
+  }, [eventoId])
+
+  useEffect(() => {
+    if (!evento || !hasChanges) return
+
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        const existing = await readPlanimetriaDraft(eventoId)
+        const mutationId = createPlanimetriaMutationId()
+        const pendingSync = Boolean(existing?.pendingSync)
+        const preservedStatus = existing?.syncStatus === 'conflict' || existing?.syncStatus === 'blocked'
+          ? existing.syncStatus
+          : pendingSync ? 'pending' : 'local'
+
+        const draft: PlanimetriaDraft = {
+          eventoId,
+          eventoTitolo: evento.titolo,
+          disposizioneSala: disposizione,
+          disposizioneSalaPianoB: disposizionePianoB,
+          pianoAttivo,
+          baseUpdatedAt,
+          localUpdatedAt: new Date().toISOString(),
+          mutationId,
+          pendingSync,
+          syncStatus: preservedStatus,
+          conflictServerUpdatedAt: existing?.conflictServerUpdatedAt,
+        }
+
+        await writePlanimetriaDraft(draft)
+        draftMutationIdRef.current = mutationId
+        setSyncState((current) => {
+          if (current === 'conflict' || current === 'blocked') return current
+          if (!navigator.onLine) return 'offline'
+          return pendingSync ? 'pending' : 'local'
+        })
+      })()
+    }, 450)
+
+    return () => window.clearTimeout(timer)
+  }, [baseUpdatedAt, disposizione, disposizionePianoB, evento, eventoId, hasChanges, pianoAttivo])
 
   useEffect(() => {
     localStorage.setItem('schema_preferiti_ids', JSON.stringify(preferitiSchemaIds))
@@ -145,6 +305,25 @@ export default function GestionePiantinaPage() {
     fetchEventiSimili()
   }, [evento?.tipo, evento?.personePreviste, eventoId])
 
+  useEffect(() => {
+    const warnUnsaved = (event: BeforeUnloadEvent) => {
+      if (!hasChanges) return
+      event.preventDefault()
+    }
+    const handleSaveShortcut = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 's') {
+        event.preventDefault()
+        handleSave()
+      }
+    }
+    window.addEventListener('beforeunload', warnUnsaved)
+    window.addEventListener('keydown', handleSaveShortcut)
+    return () => {
+      window.removeEventListener('beforeunload', warnUnsaved)
+      window.removeEventListener('keydown', handleSaveShortcut)
+    }
+  })
+
   const handleUploadPlanimetriaGlobale = async (file: File) => {
     const formData = new FormData()
     formData.append('file', file)
@@ -173,6 +352,7 @@ export default function GestionePiantinaPage() {
     } else {
       setDisposizione(parsed)
     }
+    setHasChanges(true)
     setStatus(`Schema copiato da evento #${selected.id} nel Piano ${pianoAttivo}`)
     setTimeout(() => setStatus(''), 2000)
   }
@@ -212,36 +392,142 @@ export default function GestionePiantinaPage() {
     })
   }
 
-  const handleSave = async () => {
-    if (!evento) return
+  const saveCurrentDraft = async (baseVersionOverride?: string | null) => {
+    if (!evento || isSaving) return
     setIsSaving(true)
-    setStatus('Salvataggio in corso...')
+    setStatus(navigator.onLine ? 'Salvataggio in corso...' : 'Salvataggio locale in corso...')
+    setSyncState(navigator.onLine ? 'syncing' : 'offline')
     const overrideHeaders = getOverrideHeaders()
+    const mutationId = createPlanimetriaMutationId()
+    const draft: PlanimetriaDraft = {
+      eventoId,
+      eventoTitolo: evento.titolo,
+      disposizioneSala: disposizione,
+      disposizioneSalaPianoB: disposizionePianoB,
+      pianoAttivo,
+      baseUpdatedAt: baseVersionOverride === undefined ? baseUpdatedAt : baseVersionOverride,
+      localUpdatedAt: new Date().toISOString(),
+      mutationId,
+      pendingSync: true,
+      syncStatus: 'pending',
+    }
+
     try {
+      await writePlanimetriaDraft(draft)
+      draftMutationIdRef.current = mutationId
+
+      if (!navigator.onLine) {
+        setSyncState('offline')
+        setStatus('📱 Salvato su questo iPad. Verrà inviato automaticamente quando torna la rete.')
+        return
+      }
+
       const res = await fetch(`/api/eventi?id=${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...overrideHeaders },
         body: JSON.stringify({
-          ...evento,
           disposizioneSala: disposizione,
-          disposizioneSalePianoB: disposizionePianoB,
-          pianoAttivo
+          disposizioneSalaPianoB: disposizionePianoB,
+          pianoAttivo,
+          _baseUpdatedAt: draft.baseUpdatedAt,
+          _clientMutationId: mutationId,
         })
       })
 
-      if (res.status === 423) {
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}))
+        const currentDraft = await readPlanimetriaDraft(eventoId)
+        if (currentDraft?.mutationId === mutationId) {
+          await writePlanimetriaDraft({
+            ...currentDraft,
+            pendingSync: false,
+            syncStatus: 'conflict',
+            conflictServerUpdatedAt: body.currentUpdatedAt || null,
+          })
+        }
+        setConflictServerEvent(body.current || null)
+        setSyncState('conflict')
+        setStatus('⚠️ Un altro dispositivo ha salvato una versione più recente. La tua bozza non è stata sovrascritta.')
+      } else if (res.status === 423) {
         const body = await res.json()
+        const currentDraft = await readPlanimetriaDraft(eventoId)
+        if (currentDraft?.mutationId === mutationId) {
+          await writePlanimetriaDraft({ ...currentDraft, pendingSync: false, syncStatus: 'blocked' })
+        }
+        setSyncState('blocked')
         setStatus(`🔒 ${body.message || 'Evento bloccato: serve override amministrativo.'}`)
       } else {
-        setStatus(res.ok ? '✅ Salvato con successo' : '❌ Errore nel salvataggio')
+        if (res.ok) {
+          const saved = await res.json().catch(() => ({}))
+          await removePlanimetriaDraft(eventoId, mutationId)
+          if (saved.updatedAt) {
+            setBaseUpdatedAt(saved.updatedAt)
+            setEvento((current: any) => current ? { ...current, updatedAt: saved.updatedAt } : current)
+          }
+          setHasChanges(false)
+          setLastSavedAt(new Date())
+          setConflictServerEvent(null)
+          setSyncState('synced')
+          draftMutationIdRef.current = null
+          setStatus('✅ Salvato e sincronizzato')
+        } else {
+          const currentDraft = await readPlanimetriaDraft(eventoId)
+          if (currentDraft?.mutationId === mutationId) {
+            await writePlanimetriaDraft({ ...currentDraft, pendingSync: true, syncStatus: 'pending' })
+          }
+          setSyncState('pending')
+          setStatus('Invio non riuscito. La bozza è al sicuro e resta in coda.')
+        }
       }
-      setTimeout(() => setStatus(''), 2000)
     } catch (error) {
       console.error('Errore nel salvataggio:', error)
-      setStatus('❌ Errore nel salvataggio')
+      const currentDraft = await readPlanimetriaDraft(eventoId).catch(() => null)
+      if (currentDraft?.mutationId === mutationId) {
+        await writePlanimetriaDraft({ ...currentDraft, pendingSync: true, syncStatus: 'pending' }).catch(() => {})
+      }
+      setSyncState(navigator.onLine ? 'pending' : 'offline')
+      setStatus('📱 Connessione assente o instabile: la bozza è salvata sul dispositivo e resta in coda.')
     } finally {
       setIsSaving(false)
     }
+  }
+
+  const handleSave = () => saveCurrentDraft()
+
+  const handleUseServerVersion = async () => {
+    let current = conflictServerEvent
+    if (!current) {
+      const response = await fetch(`/api/eventi?id=${id}`)
+      if (!response.ok) return
+      current = await response.json()
+    }
+
+    setEvento(current)
+    setDisposizione(parseDisposizione(current.disposizioneSala))
+    setDisposizionePianoB(parseDisposizione(current.disposizioneSalaPianoB))
+    setPianoAttivo(current.pianoAttivo === 'B' ? 'B' : 'A')
+    setBaseUpdatedAt(current.updatedAt || null)
+    setConflictServerEvent(null)
+    setHasChanges(false)
+    setSyncState('synced')
+    draftMutationIdRef.current = null
+    await removePlanimetriaDraft(eventoId)
+    setStatus('Versione del server caricata. La bozza locale è stata rimossa.')
+    setTimeout(() => setStatus(''), 2500)
+  }
+
+  const handleKeepLocalVersion = async () => {
+    let serverUpdatedAt = conflictServerEvent?.updatedAt || null
+    if (!serverUpdatedAt) {
+      const response = await fetch(`/api/eventi?id=${id}`)
+      if (!response.ok) return
+      const current = await response.json()
+      serverUpdatedAt = current.updatedAt || null
+    }
+    setConflictServerEvent(null)
+    setBaseUpdatedAt(serverUpdatedAt)
+    setSyncState('local')
+    await saveCurrentDraft(serverUpdatedAt)
   }
 
   const generateCanvas = async () => {
@@ -427,6 +713,14 @@ export default function GestionePiantinaPage() {
   const disposizioneCorrente = pianoAttivo === 'B' ? disposizionePianoB : disposizione
   const riepilogo = calcolaRiepilogoVarianti(disposizioneCorrente)
   const eventiPreferiti = eventiSimili.filter((ev) => preferitiSchemaIds.includes(Number(ev.id)))
+  const visibleSyncState = !isOnline && syncState !== 'conflict' && syncState !== 'blocked' ? 'offline' : syncState
+  const syncStatusLabel = visibleSyncState === 'synced' ? 'Sincronizzato'
+    : visibleSyncState === 'local' ? 'Bozza locale'
+      : visibleSyncState === 'pending' ? 'In attesa di invio'
+        : visibleSyncState === 'syncing' ? 'Sincronizzazione…'
+          : visibleSyncState === 'offline' ? 'Offline · al sicuro'
+            : visibleSyncState === 'conflict' ? 'Conflitto protetto'
+              : 'Serve autorizzazione'
 
   if (!evento) {
     return (
@@ -437,9 +731,9 @@ export default function GestionePiantinaPage() {
   }
 
   return (
-    <div className="space-y-6" data-testid="piantina-page">
+    <div className="flex flex-col gap-4" data-testid="piantina-page">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+      <div className="order-1 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <Button 
             variant="ghost" 
@@ -449,13 +743,20 @@ export default function GestionePiantinaPage() {
             <ArrowLeft className="w-4 h-4 mr-2" />
             Torna all'evento
           </Button>
-          <h1 className="text-2xl font-bold text-gray-900 flex items-center gap-2" data-testid="piantina-title">
-            <Layout className="w-7 h-7 text-amber-500" />
+          <h1 className="flex items-center gap-2 text-2xl font-semibold tracking-tight text-[#173c37]" data-testid="piantina-title">
+            <Layout className="h-7 w-7 text-[#a67832]" />
             Disposizione Sala
           </h1>
-          <p className="text-gray-500">{evento.titolo}</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-500">
+            <span>{evento.titolo}</span>
+            {hasChanges ? (
+              <span className="inline-flex items-center gap-1 rounded-full bg-[#f8f1e1] px-2 py-1 text-xs font-medium text-[#765c26]"><span className="h-1.5 w-1.5 rounded-full bg-[#c9a96a]" /> Modifiche da salvare</span>
+            ) : lastSavedAt ? (
+              <span className="text-xs text-[#4f7e70]">Salvato alle {lastSavedAt.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' })}</span>
+            ) : null}
+          </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button variant="outline" onClick={handleExportPng} data-testid="export-png-piantina-btn">
             <Image className="w-4 h-4 mr-2" />
             PNG
@@ -479,7 +780,7 @@ export default function GestionePiantinaPage() {
           <Button 
             onClick={handleSave} 
             disabled={isSaving}
-            className="bg-amber-500 hover:bg-amber-600"
+            className={`${hasChanges ? 'bg-[#a67832] hover:bg-[#8c6328]' : 'bg-[#173c37] hover:bg-[#214f48]'} min-w-32 text-white`}
             data-testid="save-piantina-btn"
           >
             <Save className="w-4 h-4 mr-2" />
@@ -490,23 +791,35 @@ export default function GestionePiantinaPage() {
 
       {/* Status */}
       {status && (
-        <div className={`px-4 py-2 rounded-lg text-sm ${
-          status.includes('✅') ? 'bg-green-50 text-green-700' : status.includes('🔒') ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-700'
+        <div className={`order-2 px-4 py-2 rounded-lg text-sm ${
+          status.includes('✅') ? 'bg-green-50 text-green-700' : status.includes('🔒') ? 'bg-amber-50 text-amber-700' : status.includes('❌') ? 'bg-red-50 text-red-700' : 'bg-blue-50 text-blue-700'
         }`} data-testid="status-message">
           {status}
         </div>
       )}
 
+      {syncState === 'conflict' && (
+        <div className="order-2 flex flex-col gap-3 rounded-xl border border-[#d89b78]/45 bg-[#fff8f4] px-4 py-3 text-sm text-[#7a3d2b] sm:flex-row sm:items-center" data-testid="piantina-page-conflict-banner">
+          <p className="flex-1"><strong>Modifica contemporanea:</strong> la bozza di questo dispositivo è stata conservata. Scegli quale versione continuare a usare.</p>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={handleUseServerVersion}>Usa server</Button>
+            <Button onClick={handleKeepLocalVersion} className="bg-[#a67832] text-white hover:bg-[#8c6328]">Mantieni questo dispositivo</Button>
+          </div>
+        </div>
+      )}
+
       {infoBlocco && (
-        <BannerBlocco
-          infoBlocco={infoBlocco}
-          onOverrideSuccess={() => setStatus('🔓 Override attivato. Ora puoi salvare la planimetria.')}
-        />
+        <div className="order-2">
+          <BannerBlocco
+            infoBlocco={infoBlocco}
+            onOverrideSuccess={() => setStatus('🔓 Override attivato. Ora puoi salvare la planimetria.')}
+          />
+        </div>
       )}
 
       {/* Riepilogo varianti */}
       {riepilogo.tavoliConVarianti > 0 && (
-        <Card className="bg-blue-50 border-blue-200" data-testid="riepilogo-varianti">
+        <Card className="order-5 bg-blue-50 border-blue-200" data-testid="riepilogo-varianti">
           <CardContent className="p-4">
             <h3 className="font-semibold text-blue-900 mb-2">📊 Riepilogo Varianti</h3>
             <div className="flex flex-wrap gap-3 text-sm">
@@ -532,7 +845,7 @@ export default function GestionePiantinaPage() {
       )}
 
       {/* Toggle Piano A / Piano B */}
-      <Card className="border-amber-200 bg-amber-50/50" data-testid="piano-ab-card">
+      <Card className="order-3 border-[#c9a96a]/35 bg-[#fbf7ee]" data-testid="piano-ab-card">
         <CardContent className="p-4">
           <div className="flex items-center justify-between">
             <div>
@@ -541,14 +854,14 @@ export default function GestionePiantinaPage() {
             </div>
             <div className="flex gap-1 bg-white rounded-lg border p-1" data-testid="piano-ab-toggle">
               <button
-                onClick={() => setPianoAttivo('A')}
+                onClick={() => { setPianoAttivo('A'); setHasChanges(true) }}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${pianoAttivo === 'A' ? 'bg-amber-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                 data-testid="piano-a-btn"
               >
                 Piano A
               </button>
               <button
-                onClick={() => setPianoAttivo('B')}
+                onClick={() => { setPianoAttivo('B'); setHasChanges(true) }}
                 className={`px-4 py-1.5 rounded-md text-sm font-medium transition-colors ${pianoAttivo === 'B' ? 'bg-blue-500 text-white' : 'text-gray-600 hover:bg-gray-100'}`}
                 data-testid="piano-b-btn"
               >
@@ -565,16 +878,16 @@ export default function GestionePiantinaPage() {
       </Card>
 
       {/* Istruzioni */}
-      <Card className="bg-gray-50">
+      <Card className="order-6 bg-gray-50">
         <CardContent className="p-4 flex items-center gap-3">
           <Info className="w-5 h-5 text-gray-500" />
           <p className="text-sm text-gray-600">
-            <strong>Tip:</strong> Seleziona un tavolo per rinominarlo, impostare i posti (es. Giglio 5, Orchidea 7) e ridimensionarlo.
+            <strong>Su iPad:</strong> la planimetria si apre come una tavola da disegno. Pizzica con due dita per ingrandire, trascina con due dita per spostare la tavola e trascina direttamente tavoli e stazioni. Un doppio tocco centra di nuovo il lavoro.
           </p>
         </CardContent>
       </Card>
 
-      <Card data-testid="copia-schema-card">
+      <Card className="order-7" data-testid="copia-schema-card">
         <CardHeader>
           <CardTitle className="text-base">Scegli schema</CardTitle>
         </CardHeader>
@@ -628,28 +941,43 @@ export default function GestionePiantinaPage() {
       </Card>
 
       {/* Piantina */}
-      <Card>
+      <Card className="order-4 overflow-hidden">
         <CardContent className="p-4">
-          <VillaPiantinaDnDWrapper>
-            <VillaPiantina
-              disposizione={disposizioneCorrente}
-              onChange={aggiornaDisposizione}
-              editabile={true}
-              stampaRef={stampaRef}
-              onStampa={handleStampaPlanimetria}
-              planimetrie={planimetrie}
-              onNuovaPlanimetria={handleUploadPlanimetriaGlobale}
-              onCambiaPlanimetria={(url) => {
-                if (pianoAttivo === 'B') {
-                  setDisposizionePianoB((prev) => ({ ...prev, immagine: url }))
-                } else {
-                  setDisposizione((prev) => ({ ...prev, immagine: url }))
-                }
-              }}
-              onDeletePlanimetria={handleDeletePlanimetriaGlobale}
-              variantiAttive={variantiAttive}
-            />
-          </VillaPiantinaDnDWrapper>
+          <VillaPiantina
+            key={pianoAttivo}
+            disposizione={disposizioneCorrente}
+            onChange={aggiornaDisposizione}
+            editabile={true}
+            stampaRef={stampaRef}
+            onStampa={handleStampaPlanimetria}
+            planimetrie={planimetrie}
+            onNuovaPlanimetria={handleUploadPlanimetriaGlobale}
+            onCambiaPlanimetria={(url) => {
+              if (pianoAttivo === 'B') {
+                setDisposizionePianoB((prev) => ({ ...prev, immagine: url }))
+              } else {
+                setDisposizione((prev) => ({ ...prev, immagine: url }))
+              }
+              setHasChanges(true)
+            }}
+            onDeletePlanimetria={handleDeletePlanimetriaGlobale}
+            variantiAttive={variantiAttive}
+            onBack={() => router.push(`/modifica-evento/${id}`)}
+            onSave={handleSave}
+            isSaving={isSaving}
+            hasUnsavedChanges={hasChanges}
+            workspaceTitle={evento.titolo}
+            pianoLabel={`Piano ${pianoAttivo}`}
+            onTogglePiano={() => {
+              setPianoAttivo((current) => current === 'A' ? 'B' : 'A')
+              setHasChanges(true)
+            }}
+            startInFocusMode
+            syncStatusLabel={syncStatusLabel}
+            syncStatusTone={visibleSyncState}
+            onKeepLocalVersion={handleKeepLocalVersion}
+            onUseServerVersion={handleUseServerVersion}
+          />
         </CardContent>
       </Card>
     </div>

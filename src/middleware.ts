@@ -89,6 +89,10 @@ export function middleware(req: NextRequest) {
   if (
     pathname.startsWith('/_next') ||
     pathname.startsWith('/favicon') ||
+    pathname === '/manifest.webmanifest' ||
+    pathname === '/sw.js' ||
+    pathname.startsWith('/app-icon') ||
+    pathname === '/apple-touch-icon.png' ||
     pathname.startsWith('/planimetrie/')
   ) {
     return NextResponse.next()
