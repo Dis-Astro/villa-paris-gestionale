@@ -107,6 +107,15 @@ export function middleware(req: NextRequest) {
   if (isLoginPath || isAuthApi || isOAuthCallback) return NextResponse.next()
 
   const authorization = req.headers.get('authorization')
+  const calendarSyncSecret = process.env.CALENDAR_SYNC_SECRET
+  const isCalendarAutomation = pathname === '/api/google-calendar/import' &&
+    Boolean(calendarSyncSecret) &&
+    authorization === `Bearer ${calendarSyncSecret}`
+
+  // Il worker usa un segreto dedicato, non un JWT utente. La route ripete la
+  // stessa verifica prima di avviare l'importazione.
+  if (isCalendarAutomation) return NextResponse.next()
+
   const bearerToken = authorization?.startsWith('Bearer ') ? authorization.slice(7) : null
   const token = bearerToken || req.cookies.get('vp_token')?.value
   if (!token) {
