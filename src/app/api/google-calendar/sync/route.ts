@@ -5,6 +5,7 @@ import { getActiveConfig, getAuthenticatedClient, getCalendarService, buildCalen
 import { dbJsonParse } from '@/lib/db-json'
 import { importGoogleCalendar } from '@/lib/google-calendar-import'
 import { processPendingAIEnhancements } from '@/lib/ai-service'
+import { getCalendarWindow } from '@/lib/calendar-window'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -94,9 +95,18 @@ export async function POST(req: NextRequest) {
       select: { gcalEventId: true }
     })
     const importedIds = new Set(importedRows.map((item) => item.gcalEventId))
+    const { from, to } = getCalendarWindow()
 
     // === 1) EVENTI ===
-    const eventi = await prisma.evento.findMany()
+    const eventi = await prisma.evento.findMany({
+      where: {
+        OR: [
+          { dataConfermata: { gte: from, lte: to } },
+          { dataPrimoContatto: { gte: from, lte: to } },
+          { dataConfermata: null, dataPrimoContatto: null, createdAt: { gte: from, lte: to } }
+        ]
+      }
+    })
     console.log(`[GCal Sync] Inizio sync: ${eventi.length} eventi totali`)
 
     for (const evento of eventi) {
@@ -159,6 +169,7 @@ export async function POST(req: NextRequest) {
 
     // === 2) APPUNTAMENTI ===
     const appuntamenti = await prisma.appuntamento.findMany({
+      where: { dataAppuntamento: { gte: from, lte: to } },
       include: { clientePrincipale: { select: { nome: true, cognome: true } } }
     })
     console.log(`[GCal Sync] Sync: ${appuntamenti.length} appuntamenti totali`)

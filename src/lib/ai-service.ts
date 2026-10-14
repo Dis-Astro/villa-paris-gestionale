@@ -1,6 +1,7 @@
 import prisma from '@/lib/prisma'
 import { getAIConfig, type AIConfig } from '@/lib/ai-config'
 import { requestStructuredAI } from '@/lib/ai-provider'
+import { isDateWithinCalendarWindow } from '@/lib/calendar-window'
 
 type AIAnalysis = {
   resourceType: 'evento' | 'appuntamento'
@@ -331,7 +332,7 @@ export async function analyzeCalendarImportWithAI(
       where: { id: importId },
       data: { aiStatus: 'out_of_scope', aiAnalyzedAt: new Date() }
     })
-    throw new Error('Il record è precedente alla finestra di analisi degli ultimi tre anni')
+    throw new Error('Il record è fuori dalla finestra operativa del calendario')
   }
   const resource = await currentResource(imported)
   const input = {
@@ -418,10 +419,7 @@ function isImportWithinAnalysisWindow(rawData: string) {
     if (!value) return false
     const date = new Date(value)
     if (Number.isNaN(date.getTime())) return false
-    const cutoff = new Date()
-    cutoff.setFullYear(cutoff.getFullYear() - 3)
-    cutoff.setHours(0, 0, 0, 0)
-    return date >= cutoff
+    return isDateWithinCalendarWindow(date)
   } catch {
     return false
   }
@@ -437,8 +435,10 @@ export function processPendingAIEnhancements(limit = Number(process.env.AI_BATCH
         stato: { not: 'deleted' },
         OR: [{ aiStatus: null }, { aiStatus: 'pending' }, { aiStatus: 'failed' }]
       },
-      orderBy: { lastImportedAt: 'asc' },
-      take: 10000
+      // I record appena importati sono i candidati utili. Evita di rileggere migliaia
+      // di payload storici a ogni sincronizzazione.
+      orderBy: { lastImportedAt: 'desc' },
+      take: Math.max(100, Math.min(500, Math.max(1, limit) * 10))
     })
     const outsideIds = candidates
       .filter((item) => !isImportWithinAnalysisWindow(item.rawData))

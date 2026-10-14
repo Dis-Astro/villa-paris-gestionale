@@ -30,6 +30,49 @@ const COLORI: Record<string, { bg: string; label: string }> = {
   altro:          { bg: '#6B7280', label: 'Altro'                     },
 }
 
+type CalendarPayload = {
+  eventi?: any[]
+  appuntamenti?: any[]
+  primiContatti?: any[]
+  error?: string
+}
+
+const CALENDAR_MEMORY_FRESH_MS = 60_000
+const CALENDAR_MEMORY_STALE_MS = 5 * 60_000
+let calendarMemoryCache: { payload: CalendarPayload; storedAt: number } | null = null
+let calendarRequest: Promise<CalendarPayload> | null = null
+
+function readableCalendarCache() {
+  if (!calendarMemoryCache) return null
+  return Date.now() - calendarMemoryCache.storedAt <= CALENDAR_MEMORY_STALE_MS
+    ? calendarMemoryCache
+    : null
+}
+
+function invalidateCalendarMemoryCache() {
+  calendarMemoryCache = null
+}
+
+async function loadCalendarPayload(force = false) {
+  const cached = readableCalendarCache()
+  if (!force && cached && Date.now() - cached.storedAt <= CALENDAR_MEMORY_FRESH_MS) {
+    return cached.payload
+  }
+  if (calendarRequest) return calendarRequest
+
+  calendarRequest = fetch('/api/calendario', { cache: force ? 'no-store' : 'default' })
+    .then(async (response) => {
+      const payload = await response.json() as CalendarPayload
+      if (!response.ok) throw new Error(payload.error || 'Errore caricamento calendario')
+      calendarMemoryCache = { payload, storedAt: Date.now() }
+      return payload
+    })
+    .finally(() => {
+      calendarRequest = null
+    })
+  return calendarRequest
+}
+
 function colorePerTipo(tipo: string, ruolo: string): string {
   if (ruolo === 'registrazione' || ruolo === 'registrazione-cliente') return COLORI.registrazione.bg
   if (ruolo === 'opzionato')     return COLORI.opzionato.bg
@@ -139,12 +182,12 @@ export default function CalendarioPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [status, setStatus] = useState('')
 
-  const appuntamentiMese = appuntamenti.filter((a: any) => {
-    const d = a.dataAppuntamento?.split('T')[0]
-    if (!d) return false
-    const dt = new Date(d); const now = new Date()
-    return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()
-  }).length
+  const appuntamentiMese = useMemo(() => appuntamenti.filter((a: any) => {
+      const d = a.dataAppuntamento?.split('T')[0]
+      if (!d) return false
+      const dt = new Date(d); const now = new Date()
+      return dt.getMonth() === now.getMonth() && dt.getFullYear() === now.getFullYear()
+    }).length, [appuntamenti])
 
   const canManageCalendar = role !== null && role !== 'REPORT'
 
@@ -180,11 +223,7 @@ export default function CalendarioPage() {
     return [...daEventi, ...daPrimiContatti, ...daAppuntamenti]
   }, [eventi, primiContatti, appuntamenti])
 
-  const fetchEventi = useCallback(() => {
-    fetch('/api/calendario')
-      .then(async (response) => {
-        const data = await response.json()
-        if (!response.ok) throw new Error(data.error || 'Errore caricamento calendario')
+  const applyCalendarPayload = useCallback((data: CalendarPayload) => {
         const parsedEventi = (Array.isArray(data.eventi) ? data.eventi : []).map((ev: any) => ({
           ...ev,
           dataConfermata: ev.dataConfermata?.split('T')[0] || null,
@@ -217,15 +256,28 @@ export default function CalendarioPage() {
         setEventi(parsedEventi)
         setAppuntamenti(Array.isArray(data.appuntamenti) ? data.appuntamenti : [])
         setPrimiContatti(parsedPrimiContatti)
-      })
-      .catch(() => {
+  }, [])
+
+  const fetchEventi = useCallback(async (force = false) => {
+    const cached = force ? null : readableCalendarCache()
+    if (cached) applyCalendarPayload(cached.payload)
+
+    try {
+      const data = await loadCalendarPayload(force)
+      applyCalendarPayload(data)
+    } catch {
+      if (!cached) {
         setEventi([])
         setAppuntamenti([])
         setPrimiContatti([])
-      })
-  }, [])
+      }
+    }
+  }, [applyCalendarPayload])
 
-  useEffect(() => { fetchEventi() }, [fetchEventi, calendarKey])
+  useEffect(() => {
+    if (calendarKey > 0) invalidateCalendarMemoryCache()
+    void fetchEventi(calendarKey > 0)
+  }, [fetchEventi, calendarKey])
 
   const goToDate = useCallback((val: string) => {
     if (!val) return
@@ -332,7 +384,7 @@ export default function CalendarioPage() {
   // ──────────────────────────────────────────────────
   // EVENTI FULLCALENDAR
   // ──────────────────────────────────────────────────
-  const eventiCalendarioEventi = eventi.flatMap((ev) => {
+  const eventiCalendarioEventi = useMemo(() => eventi.flatMap((ev) => {
     if (ev.stato === 'annullato') return []
     const result: any[] = []
 
@@ -377,9 +429,9 @@ export default function CalendarioPage() {
     }
 
     return result
-  })
+  }), [eventi])
 
-  const eventiCalendarioAppuntamenti = appuntamenti.map((app: any) => {
+  const eventiCalendarioAppuntamenti = useMemo(() => appuntamenti.map((app: any) => {
     const date = app.dataAppuntamento?.split('T')[0]
     return {
       id: `app-${app.id}`,
@@ -399,18 +451,22 @@ export default function CalendarioPage() {
         }
       }
     }
-  })
+  }), [appuntamenti])
 
-  const eventiCalendarioPrimiContatti = primiContatti.map((cliente: any) => ({
+  const eventiCalendarioPrimiContatti = useMemo(() => primiContatti.map((cliente: any) => ({
     id: `contact-${cliente.id}-${cliente.dataPrimoContatto}`,
     title: `📋 ${cliente.titolo}`,
     date: cliente.dataPrimoContatto,
     backgroundColor: COLORI.registrazione.bg,
     borderColor: COLORI.registrazione.bg,
     extendedProps: { eventoId: cliente.id, ruolo: 'registrazione-cliente', ev: cliente }
-  }))
+  })), [primiContatti])
 
-  const eventiCalendario = [...eventiCalendarioEventi, ...eventiCalendarioPrimiContatti, ...eventiCalendarioAppuntamenti]
+  const eventiCalendario = useMemo(() => [
+    ...eventiCalendarioEventi,
+    ...eventiCalendarioPrimiContatti,
+    ...eventiCalendarioAppuntamenti
+  ], [eventiCalendarioAppuntamenti, eventiCalendarioEventi, eventiCalendarioPrimiContatti])
 
   const eventiCalendarioFiltrati = useMemo(() => {
     if (filtroVista === 'tutti') return eventiCalendario
@@ -539,7 +595,7 @@ export default function CalendarioPage() {
   }
 
   // Range anni disponibili
-  const anni = Array.from({ length: 7 }, (_, i) => new Date().getFullYear() - 2 + i)
+  const anni = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i)
 
   return (
     <div className="space-y-6" data-testid="calendario-page">

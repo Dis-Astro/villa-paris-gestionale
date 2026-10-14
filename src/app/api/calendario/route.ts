@@ -2,30 +2,28 @@ import { NextRequest, NextResponse } from 'next/server'
 import prisma from '@/lib/prisma'
 import { requireAuth } from '@/lib/auth'
 import { dbJsonParse } from '@/lib/db-json'
+import { getCalendarWindow } from '@/lib/calendar-window'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-function threeYearsAgo() {
-  const date = new Date()
-  date.setFullYear(date.getFullYear() - 3)
-  date.setHours(0, 0, 0, 0)
-  return date
-}
 
 export async function GET(req: NextRequest) {
   const auth = await requireAuth(req, ['ADMIN', 'REPORT', 'WORKER'])
   if (!auth.ok) return NextResponse.json({ error: auth.error }, { status: auth.status })
 
   try {
-    const from = threeYearsAgo()
+    const { from, to } = getCalendarWindow()
     const [eventi, appuntamenti, primiContatti] = await Promise.all([
       prisma.evento.findMany({
         where: {
           OR: [
-            { dataConfermata: { gte: from } },
-            { dataPrimoContatto: { gte: from } },
-            { createdAt: { gte: from } }
+            { dataConfermata: { gte: from, lte: to } },
+            { dataPrimoContatto: { gte: from, lte: to } },
+            {
+              dataConfermata: null,
+              dataPrimoContatto: null,
+              createdAt: { gte: from, lte: to }
+            }
           ]
         },
         orderBy: { dataConfermata: 'asc' },
@@ -37,10 +35,8 @@ export async function GET(req: NextRequest) {
           dataPrimoContatto: true,
           canalePrimoContatto: true,
           dateProposte: true,
-          fascia: true,
           stato: true,
           personePreviste: true,
-          note: true,
           clienti: {
             take: 1,
             select: {
@@ -50,8 +46,7 @@ export async function GET(req: NextRequest) {
                   id: true,
                   nome: true,
                   cognome: true,
-                  telefono: true,
-                  email: true
+                  telefono: true
                 }
               }
             }
@@ -59,38 +54,31 @@ export async function GET(req: NextRequest) {
         }
       }),
       prisma.appuntamento.findMany({
-        where: { dataAppuntamento: { gte: from } },
+        where: { dataAppuntamento: { gte: from, lte: to } },
         orderBy: { dataAppuntamento: 'desc' },
         select: {
           id: true,
           dataAppuntamento: true,
-          durataMinuti: true,
           esito: true,
           riassuntoColloquio: true,
-          noteColloquio: true,
-          statoFunnel: true,
-          dateOpzionate: true,
-          statoOpzione: true,
           clientePrincipale: {
             select: {
               id: true,
               nome: true,
               cognome: true,
-              telefono: true,
-              email: true
+              telefono: true
             }
           }
         }
       }),
       prisma.cliente.findMany({
-        where: { dataPrimoContatto: { gte: from } },
+        where: { dataPrimoContatto: { gte: from, lte: to } },
         orderBy: { dataPrimoContatto: 'asc' },
         select: {
           id: true,
           nome: true,
           cognome: true,
           telefono: true,
-          email: true,
           dataPrimoContatto: true,
           canalePrimoContatto: true,
           isSpam: true
@@ -100,15 +88,19 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       from: from.toISOString(),
+      to: to.toISOString(),
       eventi: eventi.map((evento) => ({
         ...evento,
         dateProposte: dbJsonParse(evento.dateProposte, [])
       })),
-      appuntamenti: appuntamenti.map((appuntamento) => ({
-        ...appuntamento,
-        dateOpzionate: dbJsonParse(appuntamento.dateOpzionate, [])
-      })),
+      appuntamenti,
       primiContatti
+    }, {
+      headers: {
+        // Risposta privata: il browser può riusarla brevemente, mai una cache condivisa.
+        'Cache-Control': 'private, max-age=30, stale-while-revalidate=120',
+        'Vary': 'Cookie, Authorization'
+      }
     })
   } catch (error) {
     console.error('[Calendario] Errore caricamento dati:', error)

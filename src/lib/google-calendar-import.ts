@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import type { calendar_v3 } from 'googleapis'
 import prisma from '@/lib/prisma'
+import { calendarSyncScope, getCalendarWindow } from '@/lib/calendar-window'
 import { getActiveConfig, getAuthenticatedClient, getCalendarService } from '@/lib/google-calendar'
 
 type GoogleEvent = calendar_v3.Schema$Event
@@ -533,11 +534,10 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
   if (!authClient) throw new Error('Token Google scaduto o non valido')
 
   const calendar = getCalendarService(authClient.oauth2Client)
-  const syncScope = 'rolling-three-years-v1'
+  const now = new Date()
+  const syncScope = calendarSyncScope(now)
   const scopeChanged = config.syncScope !== syncScope
-  const timeMin = new Date()
-  timeMin.setFullYear(timeMin.getFullYear() - 3)
-  timeMin.setHours(0, 0, 0, 0)
+  const { from: timeMin, to: timeMax } = getCalendarWindow(now)
   const result: GoogleImportResult = {
     letti: 0,
     importati: 0,
@@ -564,7 +564,8 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
         showDeleted: true,
         singleEvents: false,
         syncToken,
-        timeMin: syncToken ? undefined : timeMin.toISOString()
+        timeMin: syncToken ? undefined : timeMin.toISOString(),
+        timeMax: syncToken ? undefined : timeMax.toISOString()
       })
     } catch (error: any) {
       // Un sync token scaduto restituisce 410: ripartiamo una volta con una scansione completa.
