@@ -599,9 +599,9 @@ export default function ImpostazioniPage() {
                 <div className="rounded-lg border border-blue-100 bg-blue-50/50 p-3 text-xs text-blue-800">
                   <p className="font-medium">Importazione automatica pronta</p>
                   <p className="mt-1">
-                    La prima esecuzione acquisisce l’intero calendario. In seguito vengono lette solo le novità:
+                    La prima esecuzione acquisisce i due anni precedenti e i due successivi. In seguito vengono lette solo le novità:
                     titolo, date, orari, durata, luogo, note, invitati, contatti e numero di ospiti.
-                    Le voci poco chiare vengono comunque registrate e marcate “da verificare”.
+                    Le voci riconoscibili vengono abbinate automaticamente; solo i casi realmente incompleti restano nello storico per l’AI.
                   </p>
                   {gcalImportTotal > 0 && (
                     <p className="mt-2 font-medium">
@@ -610,23 +610,15 @@ export default function ImpostazioniPage() {
                   )}
                 </div>
                 {gcalImportReview.length > 0 && (
-                  <div className="space-y-2" data-testid="gcal-import-review-list">
-                    <h4 className="font-medium text-gray-900 flex items-center gap-2">
-                      <AlertTriangle className="w-4 h-4 text-amber-500" />
-                      Importazioni da verificare ({gcalImportReviewTotal}; ultime {gcalImportReview.length} mostrate)
-                    </h4>
-                    {gcalImportReview.map((item) => (
-                      <div key={item.id} className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <span className="font-medium capitalize">{item.tipoRisorsa}</span>
-                          {item.risorsaId && <span className="text-gray-500">#{item.risorsaId}</span>}
-                          <span className="text-xs text-gray-500">
-                            affidabilità {Math.round(item.confidence * 100)}%
-                          </span>
-                        </div>
-                        <p className="mt-1 text-amber-800">{item.warning}</p>
-                      </div>
-                    ))}
+                  <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"
+                    data-testid="gcal-import-review-list">
+                    <p className="flex items-center gap-2 font-medium">
+                      <AlertTriangle className="h-4 w-4" />
+                      {gcalImportReviewTotal} voci realmente incomplete
+                    </p>
+                    <p className="mt-1 text-xs text-amber-800">
+                      Restano nello storico e vengono proposte gradualmente al Controllore AI, senza bloccare la sincronizzazione.
+                    </p>
                   </div>
                 )}
                 {syncErrors && syncErrors.length > 0 && (
@@ -1060,8 +1052,8 @@ export default function ImpostazioniPage() {
               <p className="font-medium">Next.js 15</p>
             </div>
             <div>
-              <p className="text-gray-500">Override Token</p>
-              <p className="font-mono text-xs bg-gray-100 px-2 py-1 rounded">VILLA-PARIS-ADMIN-2026</p>
+              <p className="text-gray-500">Override eventi</p>
+              <p className="font-medium">Solo Administrator, con motivazione</p>
             </div>
           </div>
         </CardContent>

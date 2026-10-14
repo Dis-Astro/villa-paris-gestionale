@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { AlertTriangle, Lock, Unlock, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { OVERRIDE_HEADERS, OVERRIDE_TOKEN_VALID } from '@/lib/blocco-evento'
+import { OVERRIDE_HEADERS } from '@/lib/blocco-evento'
 
 interface InfoBlocco {
   isBloccato: boolean
@@ -80,15 +80,13 @@ interface OverrideModalProps {
 }
 
 function OverrideModal({ onClose, onSuccess }: OverrideModalProps) {
-  const [token, setToken] = useState('')
   const [motivo, setMotivo] = useState('')
   const [autore, setAutore] = useState('')
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
 
   const handleCopyHeaders = () => {
-    const headers = `${OVERRIDE_HEADERS.TOKEN}: ${token}
-${OVERRIDE_HEADERS.MOTIVO}: ${motivo}
+    const headers = `${OVERRIDE_HEADERS.MOTIVO}: ${motivo}
 ${OVERRIDE_HEADERS.AUTORE}: ${autore || 'Admin'}`
     
     navigator.clipboard.writeText(headers)
@@ -97,17 +95,12 @@ ${OVERRIDE_HEADERS.AUTORE}: ${autore || 'Admin'}`
   }
 
   const validateAndClose = () => {
-    if (token !== OVERRIDE_TOKEN_VALID) {
-      setError('Token non valido')
-      return
-    }
     if (motivo.trim().length < 10) {
       setError('Il motivo deve essere di almeno 10 caratteri')
       return
     }
     
     // Salva in sessionStorage per le prossime richieste
-    sessionStorage.setItem('override_token', token)
     sessionStorage.setItem('override_motivo', motivo)
     sessionStorage.setItem('override_autore', autore || 'Admin')
     
@@ -145,21 +138,6 @@ ${OVERRIDE_HEADERS.AUTORE}: ${autore || 'Admin'}`
             Inserisci le credenziali di override per sbloccare temporaneamente 
             le modifiche. L'operazione verrà registrata.
           </p>
-
-          {/* Token */}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
-              Token Admin *
-            </label>
-            <input
-              type="password"
-              value={token}
-              onChange={(e) => setToken(e.target.value)}
-              placeholder="Inserisci token override"
-              className="w-full px-4 py-3 border rounded-lg text-lg"
-              data-testid="input-override-token"
-            />
-          </div>
 
           {/* Motivo */}
           <div>
@@ -231,21 +209,18 @@ ${OVERRIDE_HEADERS.AUTORE}: ${autore || 'Admin'}`
 // ============================================
 
 export function getOverrideHeaders(): Record<string, string> {
-  const token = sessionStorage.getItem('override_token')
   const motivo = sessionStorage.getItem('override_motivo')
   const autore = sessionStorage.getItem('override_autore')
 
-  if (!token || !motivo) return {}
+  if (!motivo) return {}
 
   return {
-    [OVERRIDE_HEADERS.TOKEN]: token,
     [OVERRIDE_HEADERS.MOTIVO]: motivo,
     [OVERRIDE_HEADERS.AUTORE]: autore || 'Admin'
   }
 }
 
 export function clearOverrideHeaders(): void {
-  sessionStorage.removeItem('override_token')
   sessionStorage.removeItem('override_motivo')
   sessionStorage.removeItem('override_autore')
 }

@@ -104,32 +104,23 @@ export async function getOverrideLogs(eventoId: number) {
  * Headers per override admin
  */
 export const OVERRIDE_HEADERS = {
-  TOKEN: 'X-Override-Token',
   MOTIVO: 'X-Override-Motivo',
   AUTORE: 'X-Override-Autore'
 } as const
 
-// Token semplice per demo (in produzione usare sistema auth)
-export const OVERRIDE_TOKEN_VALID = 'VILLA-PARIS-ADMIN-2026'
-
 /**
  * Valida headers di override
  */
-export function validateOverrideHeaders(headers: Headers): {
+export function validateOverrideHeaders(headers: Headers, role: string): {
   valid: boolean
   override?: OverrideRequest
   error?: string
 } {
-  const token = headers.get(OVERRIDE_HEADERS.TOKEN)
   const motivo = headers.get(OVERRIDE_HEADERS.MOTIVO)
   const autore = headers.get(OVERRIDE_HEADERS.AUTORE)
 
-  if (!token) {
-    return { valid: false, error: 'Override token mancante' }
-  }
-
-  if (token !== OVERRIDE_TOKEN_VALID) {
-    return { valid: false, error: 'Override token non valido' }
+  if (role !== 'ADMIN') {
+    return { valid: false, error: 'Override consentito esclusivamente agli amministratori' }
   }
 
   if (!motivo || motivo.trim().length < 10) {

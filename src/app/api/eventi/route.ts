@@ -288,7 +288,7 @@ export async function PUT(req: NextRequest) {
 
     if (infoBlocco.isBloccato && campiBloccatiModificati.length > 0) {
       // Verifica override headers
-      const overrideResult = validateOverrideHeaders(req.headers)
+      const overrideResult = validateOverrideHeaders(req.headers, auth.user.role)
 
       if (!overrideResult.valid) {
         return new NextResponse(
@@ -299,7 +299,6 @@ export async function PUT(req: NextRequest) {
             campiBloccati: campiBloccatiModificati,
             overrideRequired: true,
             overrideHeaders: {
-              token: OVERRIDE_HEADERS.TOKEN,
               motivo: OVERRIDE_HEADERS.MOTIVO,
               autore: OVERRIDE_HEADERS.AUTORE
             },

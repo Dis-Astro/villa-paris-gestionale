@@ -1,7 +1,7 @@
 import { createHash } from 'crypto'
 import type { calendar_v3 } from 'googleapis'
 import prisma from '@/lib/prisma'
-import { calendarSyncScope, getCalendarWindow } from '@/lib/calendar-window'
+import { calendarSyncScope, getCalendarWindow, isDateWithinCalendarWindow } from '@/lib/calendar-window'
 import { getActiveConfig, getAuthenticatedClient, getCalendarService } from '@/lib/google-calendar'
 
 type GoogleEvent = calendar_v3.Schema$Event
@@ -47,7 +47,7 @@ const EVENT_KEYWORDS = [
 ]
 const APPOINTMENT_KEYWORDS = [
   'appuntamento', 'colloquio', 'sopralluogo', 'incontro', 'riunione',
-  'meeting', 'call', 'telefonata', 'degustazione', 'prova menu'
+  'meeting', 'call', 'telefonata', 'videochiamata', 'visita', 'degustazione', 'prova menu'
 ]
 const KNOWN_EVENT_TYPES = ['matrimonio', 'battesimo', 'comunione', 'cresima', 'compleanno', 'aziendale']
 
@@ -79,7 +79,7 @@ function firstField(fields: Map<string, string>, names: string[]) {
 function stripPrefix(summary: string) {
   return summary
     .replace(/^\s*\[(evento|appuntamento|opzione)(?:\s*[-–—][^\]]+)?\]\s*/i, '')
-    .replace(/^\s*(evento|appuntamento|colloquio|sopralluogo|incontro|riunione|meeting)\s*[-–—:]\s*/i, '')
+    .replace(/^\s*(evento|app(?:untamento)?\.?|opz(?:ione)?\.?|colloquio|sopralluogo|incontro|riunione|meeting|videochiamata|visita)\s*[-–—:]?\s*/i, '')
     .trim() || 'Voce importata da Google Calendar'
 }
 
@@ -87,7 +87,10 @@ function splitName(value: string | null) {
   if (!value) return null
   const cleaned = value
     .replace(/^(con|cliente|sig\.?ra?|signor[ae]?)\s+/i, '')
+    .replace(/(?:\+39[\s.-]?)?(?:\d[\s.-]?){8,11}\d/g, '')
+    .replace(/\s+(?:per|x)\s+(?:matr\.?|matrimonio|m\b|c?18\b|18[°º]|compleanno).*$/i, '')
     .replace(/\s*[-–—|].*$/, '')
+    .replace(/\s+/g, ' ')
     .trim()
   if (!cleaned) return null
   const parts = cleaned.split(/\s+/)
@@ -155,8 +158,10 @@ export function parseGoogleCalendarEvent(event: GoogleEvent): ParsedGoogleEvent 
   const text = normalizedText(event)
   const fields = parseFields(event.description)
   const explicitType = firstField(fields, ['tipo', 'tipo evento', 'tipologia'])?.toLowerCase() || null
-  const hasEventKeyword = EVENT_KEYWORDS.some((keyword) => text.includes(keyword))
-  const hasAppointmentKeyword = APPOINTMENT_KEYWORDS.some((keyword) => text.includes(keyword))
+  const hasEventKeyword = EVENT_KEYWORDS.some((keyword) => text.includes(keyword)) ||
+    /\bmatr\.?\b|\b18[°º]\b|\bdiciottesimo\b/i.test(text)
+  const hasAppointmentKeyword = APPOINTMENT_KEYWORDS.some((keyword) => text.includes(keyword)) ||
+    /^\s*(app(?:untamento)?\.?|opz(?:ione)?\.?)\b/i.test(event.summary || '')
   const privateType = event.extendedProperties?.private?.villaParisType
 
   let tipoRisorsa: ResourceType
@@ -183,7 +188,8 @@ export function parseGoogleCalendarEvent(event: GoogleEvent): ParsedGoogleEvent 
     'cliente', 'contatto', 'nome cliente', 'festeggiato', 'sposa', 'sposo', 'azienda'
   ])
   const summaryName = tipoRisorsa === 'appuntamento' ? stripPrefix(event.summary || '') : null
-  const name = splitName(customerField || summaryName)
+  const genericAppointment = /^(appuntamento|videochiamata|visita|call|riunione|meeting|incontro)$/i
+  const name = genericAppointment.test(summaryName || '') ? null : splitName(customerField || summaryName)
   const attendees = event.attendees?.filter((item) => !item.self)
   const attendeeEmail = attendees?.find((item) => item.email)?.email || null
   const guestText = firstField(fields, ['invitati', 'persone', 'ospiti', 'coperti', 'numero invitati'])
@@ -242,7 +248,9 @@ async function findOrCreateCliente(parsed: ParsedGoogleEvent, event: GoogleEvent
   }
 
   if (data.email) {
-    const byEmail = await prisma.cliente.findFirst({ where: { email: data.email } })
+    const byEmail = await prisma.cliente.findFirst({
+      where: { email: { equals: data.email, mode: 'insensitive' } }
+    })
     if (byEmail) return byEmail
   }
   if (data.telefono) {
@@ -251,7 +259,12 @@ async function findOrCreateCliente(parsed: ParsedGoogleEvent, event: GoogleEvent
   }
   if (data.nome) {
     const byName = await prisma.cliente.findFirst({
-      where: { nome: data.nome, cognome: data.cognome }
+      where: {
+        nome: { equals: data.nome, mode: 'insensitive' },
+        cognome: data.cognome
+          ? { equals: data.cognome, mode: 'insensitive' }
+          : null
+      }
     })
     if (byName) return byName
   }
@@ -316,7 +329,9 @@ async function importOne(event: GoogleEvent) {
     return 'cancellato' as const
   }
 
-  if (previous?.fingerprint === nextFingerprint) {
+  // Le vecchie voci rimaste in revisione devono poter essere rivalutate quando
+  // migliorano le regole di classificazione, anche se Google non le ha modificate.
+  if (previous?.fingerprint === nextFingerprint && previous.stato !== 'review') {
     await prisma.googleCalendarImport.update({
       where: { id: previous.id },
       data: { lastImportedAt: new Date() }
@@ -382,14 +397,23 @@ async function importOne(event: GoogleEvent) {
     return previous ? 'aggiornato' as const : 'registrato' as const
   }
 
-  const tipoRisorsa = previous?.tipoRisorsa === 'evento' || previous?.tipoRisorsa === 'appuntamento'
+  const tipoRisorsa = previous?.risorsaId && (previous.tipoRisorsa === 'evento' || previous.tipoRisorsa === 'appuntamento')
     ? previous.tipoRisorsa as ResourceType
     : existingType || parsed.tipoRisorsa
   let risorsaId = previous?.risorsaId || linkedEvento?.id || linkedAppuntamento?.id || null
   let createdResource = previous?.createdResource || false
-  const hasOperationalIdentity = parsed.tipoRisorsa === 'evento' || Boolean(parsed.cliente)
+  const rawText = `${event.summary || ''}\n${event.description || ''}`
+  const hasStrongContact = Boolean(
+    extractPhone(rawText) || extractEmail(rawText) ||
+    event.attendees?.some((attendee) => !attendee.self && attendee.email)
+  )
+  const explicitAppointment = APPOINTMENT_KEYWORDS.some((keyword) => normalizedText(event).includes(keyword)) ||
+    /^\s*(app(?:untamento)?\.?|opz(?:ione)?\.?)\b/i.test(event.summary || '')
+  const confidentlyMaterializable = parsed.tipoRisorsa === 'evento'
+    ? Boolean((event.summary || '').trim())
+    : Boolean(parsed.cliente && (parsed.confidence >= 0.8 || hasStrongContact || explicitAppointment))
   const shouldMaterialize = Boolean(
-    risorsaId || existingType || (parsed.confidence >= 0.8 && hasOperationalIdentity)
+    risorsaId || existingType || confidentlyMaterializable
   )
 
   if (!shouldMaterialize) {
@@ -499,12 +523,12 @@ async function importOne(event: GoogleEvent) {
       tipoRisorsa,
       risorsaId,
       createdResource,
-      stato: parsed.warning ? 'review' : 'imported',
+      stato: 'imported',
       confidence: parsed.confidence,
       fingerprint: nextFingerprint,
       rawData: JSON.stringify(event),
       warning: parsed.warning,
-      aiStatus: 'pending'
+      aiStatus: parsed.warning ? 'pending' : 'not_required'
     },
     update: {
       recurringEventId: event.recurringEventId || null,
@@ -512,12 +536,12 @@ async function importOne(event: GoogleEvent) {
       tipoRisorsa,
       risorsaId,
       createdResource,
-      stato: parsed.warning ? 'review' : 'imported',
+      stato: 'imported',
       confidence: parsed.confidence,
       fingerprint: nextFingerprint,
       rawData: JSON.stringify(event),
       warning: parsed.warning,
-      aiStatus: 'pending',
+      aiStatus: parsed.warning ? 'pending' : 'not_required',
       aiAnalyzedAt: null,
       lastImportedAt: new Date(),
       deletedAt: null
@@ -525,6 +549,59 @@ async function importOne(event: GoogleEvent) {
   })
 
   return previous || existingType ? 'aggiornato' as const : 'importato' as const
+}
+
+async function settleHistoricalBacklog() {
+  const candidates = await prisma.googleCalendarImport.findMany({
+    where: {
+      OR: [
+        { stato: 'review' },
+        { aiStatus: { in: ['pending', 'failed'] } }
+      ]
+    },
+    select: { id: true, stato: true, rawData: true }
+  })
+  const outsideIds: number[] = []
+  const technicalIds: number[] = []
+
+  for (const item of candidates) {
+    try {
+      const event = JSON.parse(item.rawData) as GoogleEvent
+      const start = eventStart(event)
+      if (!start || !isDateWithinCalendarWindow(start)) {
+        outsideIds.push(item.id)
+      } else if (item.stato === 'review' && isTechnicalCalendarEntry(event)) {
+        technicalIds.push(item.id)
+      }
+    } catch {
+      outsideIds.push(item.id)
+    }
+  }
+
+  for (let offset = 0; offset < outsideIds.length; offset += 1000) {
+    await prisma.googleCalendarImport.updateMany({
+      where: { id: { in: outsideIds.slice(offset, offset + 1000) } },
+      data: {
+        stato: 'archived_out_of_scope',
+        aiStatus: 'out_of_scope',
+        aiAnalyzedAt: new Date(),
+        warning: 'Conservato nello storico: fuori dalla finestra operativa di quattro anni'
+      }
+    })
+  }
+  for (let offset = 0; offset < technicalIds.length; offset += 1000) {
+    await prisma.googleCalendarImport.updateMany({
+      where: { id: { in: technicalIds.slice(offset, offset + 1000) } },
+      data: {
+        stato: 'archived_technical',
+        aiStatus: 'not_required',
+        aiAnalyzedAt: new Date(),
+        warning: 'Voce tecnica o ristorante conservata nello storico senza creare dati operativi'
+      }
+    })
+  }
+
+  return { fuoriFinestra: outsideIds.length, tecnici: technicalIds.length }
 }
 
 async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): Promise<GoogleImportResult> {
@@ -598,6 +675,7 @@ async function runGoogleCalendarImport(options: { forceFull?: boolean } = {}): P
     nextSyncToken = response.data.nextSyncToken || nextSyncToken
   } while (pageToken)
 
+  await settleHistoricalBacklog()
   result.daVerificare = await prisma.googleCalendarImport.count({ where: { stato: 'review' } })
   await prisma.googleCalendarConfig.update({
     where: { id: config.id },
