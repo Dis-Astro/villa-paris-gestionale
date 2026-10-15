@@ -30,6 +30,7 @@ function isAllowedForWorker(pathname: string) {
     '/menu-base',
     '/stampe',
     '/api/eventi',
+    '/api/calendario',
     '/api/clienti',
     '/api/presenze-villa',
     '/api/menu-base',
@@ -183,3 +184,4 @@ export function middleware(req: NextRequest) {
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico).*)']
 }
+
